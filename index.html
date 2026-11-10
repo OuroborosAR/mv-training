@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Planificador de Entrenamiento</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- CAPA OSCURECIDA DE CARGA Y LOGEO -->
+  <div class="auth-overlay no-print" id="auth-overlay">
+    <!-- ESTADO 1: MENSAJE DE CARGA -->
+    <div class="auth-card" id="auth-loading-box">
+      <div class="loader-spinner"></div>
+      <h2 style="font-size:1rem; margin-bottom:6px; text-transform:uppercase;">Cargando Plataforma</h2>
+      <p id="auth-loading-msg" style="font-size:0.82rem; color:var(--text-muted);">
+        Sincronizando datos y preparando sesion...
+      </p>
+    </div>
+
+    <!-- ESTADO 2: PANTALLA DE BIENVENIDA Y ACCESO -->
+    <div class="auth-card section-collapsed" id="auth-login-box">
+      <h2 style="font-size:1.05rem; text-transform:uppercase; letter-spacing:0.5px;">Planificador de Entrenamiento</h2>
+      <p style="font-size:0.78rem; color:var(--text-muted); margin-top:4px;">Selecciona tu perfil para ingresar</p>
+
+      <div class="auth-tabs">
+        <button class="auth-tab-btn active" id="tab-auth-student" onclick="switchAuthTab('student')">Soy Alumno</button>
+        <button class="auth-tab-btn" id="tab-auth-coach" onclick="switchAuthTab('coach')">Soy Entrenador</button>
+      </div>
+
+      <!-- FORMULARIO ALUMNO -->
+      <div id="form-auth-student" style="display:flex; flex-direction:column; gap:10px; text-align:left;">
+        <div class="form-group">
+          <label>Numero de Telefono o Nombre Registrado</label>
+          <input type="text" id="auth-student-input" placeholder="Ej: 1123456789 o tu nombre completo" onkeydown="if(event.key==='Enter') loginAsStudent()">
+        </div>
+        <button class="btn btn-primary" style="justify-content:center; padding:9px;" onclick="loginAsStudent()">
+          Ver Mis Rutinas
+        </button>
+      </div>
+
+      <!-- FORMULARIO ENTRENADOR -->
+      <div id="form-auth-coach" class="section-collapsed" style="display:flex; flex-direction:column; gap:10px; text-align:left;">
+        <div class="form-group">
+          <label>PIN de Entrenador</label>
+          <input type="password" id="auth-coach-pin" placeholder="Ingresa tu PIN de acceso" onkeydown="if(event.key==='Enter') loginAsCoach()">
+        </div>
+        <button class="btn btn-primary" style="justify-content:center; padding:9px;" onclick="loginAsCoach()">
+          Ingresar al Panel de Edicion
+        </button>
+      </div>
+
+      <div id="auth-error-msg" style="color:var(--series-red); font-size:0.78rem; margin-top:10px; min-height:18px;"></div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       VISTA COMPLETA DE EDICION PARA EL ENTRENADOR
+       ===================================================================== -->
+  <div class="fixed-header-wrapper no-print" id="fixed-header-wrapper">
+    <div id="top-panel-section">
+      <header class="top-navbar">
+        <div class="brand-title">
+          <h1>Planificador de Entrenamiento</h1>
+          <span id="cloud-status" style="font-size:0.74rem; color:var(--text-muted);">Modo Local</span>
+        </div>
+        <div class="action-group">
+          <button class="btn btn-primary" id="btn-install-pwa" style="display:none;" onclick="installPWA()">Instalar App</button>
+          <button class="btn" onclick="toggleCloudBar()">Conexion Excel</button>
+          <button class="btn btn-primary" onclick="toggleLibraryDrawer()">Biblioteca de Ejercicios</button>
+          <button class="btn btn-success" onclick="printFullRoutine()">Descargar PDF Cliente</button>
+          <button class="btn" onclick="exportJSON()">Respaldo JSON</button>
+          <button class="btn btn-danger" onclick="resetPlanner()">Limpiar Planilla</button>
+          <button class="btn" onclick="logoutSession()">Cerrar Sesion</button>
+        </div>
+      </header>
+
+      <div class="cloud-bar section-collapsed" id="cloud-bar">
+        <div style="display:flex; align-items:center; gap:8px; flex:1; flex-wrap:wrap;">
+          <strong>URL Google Sheet (Apps Script):</strong>
+          <input type="text" id="gsheet-url-input" placeholder="Pegar enlace https://script.google.com/macros/s/.../exec" style="flex:1; min-width:240px;" onchange="saveSheetUrl()">
+          <button class="btn btn-primary" onclick="syncFromGoogleSheet(true)">Sincronizar con Excel</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="weekly-series-bar" id="weekly-series-section">
+      <div class="weekly-series-header">
+        <span>Series Semanales Acumuladas</span>
+        <button class="btn" style="padding:2px 8px; font-size:0.7rem;" onclick="toggleWeeklySeriesManual()">Ocultar</button>
+      </div>
+      <div class="weekly-series-grid" id="weekly-series-container"></div>
+    </section>
+  </div>
+
+  <!-- ESPACIADOR DINAMICO -->
+  <div id="header-spacer" class="no-print"></div>
+
+  <!-- BARRA FLOTANTE DE DIMENSION FIJA -->
+  <div class="floating-controls no-print">
+    <button class="btn btn-primary" id="btn-float-top" onclick="toggleTopPanelManual()">Panel Superior</button>
+    <button class="btn btn-primary" id="btn-float-series" onclick="toggleWeeklySeriesManual()">Series Semanales</button>
+    <button class="btn" id="btn-float-lib" onclick="toggleLibraryDrawer()">Biblioteca</button>
+  </div>
+
+  <!-- CONTENEDOR PRINCIPAL DEL ENTRENADOR -->
+  <main class="main-container" id="main-container">
+    <div class="top-grid no-print">
+      <!-- FICHA DEL CLIENTE -->
+      <div class="card">
+        <div class="card-title">
+          <span>Datos del Cliente</span>
+        </div>
+        <div class="client-bar">
+          <div style="display:flex; align-items:center; gap:6px; flex:1; flex-wrap:wrap;">
+            <strong style="font-size:0.75rem; color:var(--text-muted);">Clientes en Excel:</strong>
+            <select id="client-select" style="flex:1; min-width:190px;" onchange="loadSelectedClient(); syncCoachPhoneField();">
+              <option value="">-- Seleccionar Cliente Guardado --</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-primary" onclick="saveCoachPhoneToMeta(); saveClientToCloud();">Guardar Cliente</button>
+            <button class="btn btn-danger" onclick="deleteSelectedClient()">Eliminar</button>
+          </div>
+        </div>
+
+        <div class="client-form">
+          <div class="form-group">
+            <label>Nombre del Cliente / Grupo</label>
+            <input type="text" id="client-name" placeholder="Nombre del alumno" oninput="saveMeta()">
+          </div>
+          <div class="form-group">
+            <label>Telefono del Cliente (Login Alumno)</label>
+            <input type="tel" id="client-phone" placeholder="Ej: 1123456789" oninput="saveCoachPhoneToMeta()">
+          </div>
+          <div class="form-group">
+            <label>Entrenador</label>
+            <input type="text" id="coach-name" placeholder="Nombre del profesional" oninput="saveMeta()">
+          </div>
+          <div class="form-group">
+            <label>Objetivo</label>
+            <input type="text" id="client-goal" placeholder="Objetivo del plan" oninput="saveMeta()">
+          </div>
+          <div class="form-group">
+            <label>Estructura Semanal</label>
+            <select id="split-type" onchange="saveMeta()">
+              <option value="Full Body 3 Dias">Full Body (3 veces/sem)</option>
+              <option value="Split por Patrones 4 Dias">Split por Patrones (4 veces/sem)</option>
+              <option value="Split por Patrones 5 Dias">Split por Patrones (5 veces/sem)</option>
+              <option value="Personalizado">Personalizado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Fecha de Inicio</label>
+            <input type="date" id="start-date" oninput="saveMeta()">
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Notas Internas (No salen en el PDF)</label>
+            <input type="text" id="client-notes" placeholder="Observaciones para el entrenador..." oninput="saveMeta()">
+          </div>
+        </div>
+      </div>
+
+      <!-- REFERENCIA INTERNA DE FASE -->
+      <div class="card">
+        <div class="card-title">
+          <span>Referencia de Fase (Interno)</span>
+          <select id="nasm-phase-select" onchange="updateNASMAssistant()">
+            <option value="1">Fase 1: Estabilizacion</option>
+            <option value="2">Fase 2: Fuerza Resistencia</option>
+            <option value="3" selected>Fase 3: Hipertrofia</option>
+            <option value="4">Fase 4: Fuerza Maxima</option>
+            <option value="5">Fase 5: Potencia</option>
+          </select>
+        </div>
+        <div class="nasm-assistant-box" id="nasm-assistant-content"></div>
+      </div>
+    </div>
+
+    <!-- BARRA DE RUTINAS Y PROGRESION -->
+    <div class="control-strip no-print">
+      <div class="strip-section">
+        <strong style="font-size:0.76rem; color:var(--text-muted);">Rutinas Guardadas:</strong>
+        <select id="preset-routine-select" style="min-width:220px;">
+          <option value="">-- Seleccionar Rutina --</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadPresetRoutine()">Cargar Rutina</button>
+        <button class="btn btn-success" onclick="saveRoutineToCloud()">Guardar Rutina en Excel</button>
+        <button class="btn btn-danger" onclick="deleteSelectedRoutine()">Eliminar</button>
+      </div>
+
+      <div class="strip-section">
+        <strong style="font-size:0.76rem; color:var(--text-muted);">Progresion Semanal (Sem 1 a 4):</strong>
+        <button class="btn btn-warning" onclick="applyProgression(2.5)">+2.5%</button>
+        <button class="btn btn-warning" onclick="applyProgression(5)">+5%</button>
+        <select id="rounding-select">
+          <option value="0.5">Redondeo 0.5 kg</option>
+          <option value="1" selected>Redondeo 1 kg</option>
+          <option value="2.5">Redondeo 2.5 kg</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- PESTANAS DE DIAS -->
+    <div class="tabs-bar no-print">
+      <div class="day-tabs" id="day-tabs-container"></div>
+      <button class="btn" onclick="addDay()">+ Agregar Dia</button>
+    </div>
+
+    <!-- PLANIFICADOR ACTIVO -->
+    <div id="planner-view" class="no-print">
+      <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <h2 id="current-day-title" style="font-size:1.05rem; color:var(--accent);">Dia 1</h2>
+        <input type="text" id="day-focus-input" placeholder="Enfoque de la sesion (Opcional)" style="width:340px; max-width:100%;" oninput="saveDayFocus()">
+      </div>
+      <div id="blocks-container"></div>
+    </div>
+  </main>
+
+  <!-- =====================================================================
+       VISTA EXCLUSIVA DE SOLO LECTURA PARA EL USUARIO / ALUMNO
+       ===================================================================== -->
+  <section id="student-portal-view" class="section-collapsed no-print">
+    <header class="top-navbar" style="position:sticky; top:0; z-index:90;">
+      <div class="brand-title">
+        <h1>Portal del Alumno</h1>
+        <span class="tag-pattern" id="student-welcome-name" style="font-size:0.78rem; padding:3px 8px;">Alumno</span>
+      </div>
+      <div class="action-group">
+        <button class="btn btn-primary" id="btn-st-tab-routines" onclick="switchStudentTab('routines')">Mis Rutinas Asignadas</button>
+        <button class="btn" id="btn-st-tab-exercises" onclick="switchStudentTab('exercises')">Lista de Ejercicios</button>
+        <button class="btn btn-danger" onclick="logoutSession()">Cerrar Sesion</button>
+      </div>
+    </header>
+
+    <div class="main-container" style="margin-top:16px;">
+      <!-- SECCION 1: RUTINAS ASIGNADAS AL USUARIO -->
+      <div id="student-routines-section">
+        <div id="student-routines-content"></div>
+      </div>
+
+      <!-- SECCION 2: LISTA DE EJERCICIOS (SOLO LECTURA) -->
+      <div id="student-exercises-section" class="section-collapsed">
+        <div class="card">
+          <div class="card-title">
+            <span>Catalogo de Ejercicios</span>
+          </div>
+          <input type="text" id="student-ex-search" class="input-full" placeholder="Buscar ejercicio por nombre o elemento..." oninput="renderStudentExercisesList()">
+          <div class="filter-pills" id="student-ex-pills"></div>
+          <div class="student-exercises-grid" id="student-ex-grid"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTENEDOR COMPARTIDO DE IMPRESION / PDF A4 -->
+  <div id="print-all-days-container"></div>
+
+  <!-- PANEL LATERAL DE BIBLIOTECA (EXCLUSIVO ENTRENADOR) -->
+  <aside class="library-drawer no-print" id="library-drawer">
+    <div class="drawer-header">
+      <div>
+        <h3 style="font-size:0.9rem; color:var(--accent);">Biblioteca de Ejercicios</h3>
+        <span style="font-size:0.7rem; color:var(--text-muted);">Agregar o editar ejercicios</span>
+      </div>
+      <button class="btn" onclick="toggleLibraryDrawer()">Cerrar</button>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-add-box" id="drawer-form-box">
+        <div style="font-size:0.76rem; font-weight:700; color:var(--accent); margin-bottom:6px;" id="drawer-form-title">
+          Nuevo Ejercicio
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <input type="text" id="new-ex-name" class="input-full" placeholder="Nombre del ejercicio..." style="grid-column:span 2;">
+          <select id="new-ex-pattern" class="input-full"></select>
+          <input type="text" id="new-ex-equip" class="input-full" placeholder="Elemento (KB, Barra...)">
+          <div style="grid-column:span 2; display:flex; gap:6px;">
+            <button class="btn btn-success" id="btn-save-ex-form" style="flex:1; justify-content:center;" onclick="saveExerciseFromDrawerForm()">
+              Guardar en Biblioteca
+            </button>
+            <button class="btn" id="btn-cancel-ex-edit" style="display:none;" onclick="cancelExerciseEdit()">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <input type="text" id="drawer-search" class="input-full" placeholder="Buscar por nombre, patron o elemento..." oninput="renderDrawerLibrary()">
+      <div class="filter-pills" id="drawer-pills"></div>
+      <div id="drawer-list"></div>
+    </div>
+  </aside>
+
+  <!-- MODULOS JAVASCRIPT -->
+  <script src="core.js"></script>
+  <script src="cloud.js"></script>
+  <script src="library.js"></script>
+  <script src="planner.js"></script>
+  <script src="ui-pwa.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
