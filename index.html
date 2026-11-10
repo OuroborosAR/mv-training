@@ -14,7 +14,6 @@
 
   <!-- CAPA OSCURECIDA DE CARGA Y LOGEO -->
   <div class="auth-overlay no-print" id="auth-overlay">
-    <!-- ESTADO 1: MENSAJE DE CARGA -->
     <div class="auth-card" id="auth-loading-box">
       <div class="loader-spinner"></div>
       <h2 style="font-size:1rem; margin-bottom:6px; text-transform:uppercase;">Cargando Plataforma</h2>
@@ -23,7 +22,6 @@
       </p>
     </div>
 
-    <!-- ESTADO 2: PANTALLA DE BIENVENIDA Y ACCESO -->
     <div class="auth-card section-collapsed" id="auth-login-box">
       <h2 style="font-size:1.05rem; text-transform:uppercase; letter-spacing:0.5px;">Planificador de Entrenamiento</h2>
       <p style="font-size:0.78rem; color:var(--text-muted); margin-top:4px;">Selecciona tu perfil para ingresar</p>
@@ -33,7 +31,6 @@
         <button class="auth-tab-btn" id="tab-auth-coach" onclick="switchAuthTab('coach')">Soy Entrenador</button>
       </div>
 
-      <!-- FORMULARIO ALUMNO -->
       <div id="form-auth-student" style="display:flex; flex-direction:column; gap:10px; text-align:left;">
         <div class="form-group">
           <label>Numero de Telefono o Nombre Registrado</label>
@@ -44,7 +41,6 @@
         </button>
       </div>
 
-      <!-- FORMULARIO ENTRENADOR -->
       <div id="form-auth-coach" class="section-collapsed" style="display:flex; flex-direction:column; gap:10px; text-align:left;">
         <div class="form-group">
           <label>PIN de Entrenador</label>
@@ -59,9 +55,7 @@
     </div>
   </div>
 
-  <!-- =====================================================================
-       VISTA COMPLETA DE EDICION PARA EL ENTRENADOR
-       ===================================================================== -->
+  <!-- ENCABEZADO SUPERIOR Y SEMÁFORO DEL ENTRENADOR -->
   <div class="fixed-header-wrapper no-print" id="fixed-header-wrapper">
     <div id="top-panel-section">
       <header class="top-navbar">
@@ -98,10 +92,8 @@
     </section>
   </div>
 
-  <!-- ESPACIADOR DINAMICO -->
   <div id="header-spacer" class="no-print"></div>
 
-  <!-- BARRA FLOTANTE DE DIMENSION FIJA -->
   <div class="floating-controls no-print">
     <button class="btn btn-primary" id="btn-float-top" onclick="toggleTopPanelManual()">Panel Superior</button>
     <button class="btn btn-primary" id="btn-float-series" onclick="toggleWeeklySeriesManual()">Series Semanales</button>
@@ -110,121 +102,132 @@
 
   <!-- CONTENEDOR PRINCIPAL DEL ENTRENADOR -->
   <main class="main-container" id="main-container">
-    <div class="top-grid no-print">
-      <!-- FICHA DEL CLIENTE -->
-      <div class="card">
-        <div class="card-title">
-          <span>Datos del Cliente</span>
-        </div>
-        <div class="client-bar">
-          <div style="display:flex; align-items:center; gap:6px; flex:1; flex-wrap:wrap;">
-            <strong style="font-size:0.75rem; color:var(--text-muted);">Clientes en Excel:</strong>
-            <select id="client-select" style="flex:1; min-width:190px;" onchange="loadSelectedClient(); syncCoachPhoneField();">
-              <option value="">-- Seleccionar Cliente Guardado --</option>
-            </select>
+
+    <!-- PESTAÑAS DE NAVEGACIÓN DEL ENTRENADOR -->
+    <div class="coach-mode-tabs no-print" id="coach-mode-tabs-bar">
+      <button class="coach-mode-btn active" id="btn-mode-editor" onclick="switchCoachMainTab('editor')">
+        Editor de Planilla Activa
+      </button>
+      <button class="coach-mode-btn" id="btn-mode-generator" onclick="switchCoachMainTab('generator')">
+        Generador Automatico de Rutinas
+      </button>
+    </div>
+
+    <!-- PESTAÑA 1: GENERADOR AUTOMÁTICO DE RUTINAS -->
+    <section id="coach-generator-view" class="section-collapsed no-print"></section>
+
+    <!-- PESTAÑA 2: EDITOR DE PLANILLA Y DATOS DEL CLIENTE -->
+    <div id="coach-editor-view">
+      <div class="top-grid no-print">
+        <div class="card">
+          <div class="card-title">
+            <span>Datos del Cliente</span>
           </div>
-          <div style="display:flex; gap:6px;">
-            <button class="btn btn-primary" onclick="saveCoachPhoneToMeta(); saveClientToCloud();">Guardar Cliente</button>
-            <button class="btn btn-danger" onclick="deleteSelectedClient()">Eliminar</button>
+          <div class="client-bar">
+            <div style="display:flex; align-items:center; gap:6px; flex:1; flex-wrap:wrap;">
+              <strong style="font-size:0.75rem; color:var(--text-muted);">Clientes en Excel:</strong>
+              <select id="client-select" style="flex:1; min-width:190px;" onchange="loadSelectedClient(); syncCoachPhoneField();">
+                <option value="">-- Seleccionar Cliente Guardado --</option>
+              </select>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-primary" onclick="saveCoachPhoneToMeta(); saveClientToCloud();">Guardar Cliente</button>
+              <button class="btn btn-danger" onclick="deleteSelectedClient()">Eliminar</button>
+            </div>
+          </div>
+
+          <div class="client-form">
+            <div class="form-group">
+              <label>Nombre del Cliente / Grupo</label>
+              <input type="text" id="client-name" placeholder="Nombre del alumno" oninput="saveMeta()">
+            </div>
+            <div class="form-group">
+              <label>Telefono del Cliente (Login Alumno)</label>
+              <input type="tel" id="client-phone" placeholder="Ej: 1123456789" oninput="saveCoachPhoneToMeta()">
+            </div>
+            <div class="form-group">
+              <label>Entrenador</label>
+              <input type="text" id="coach-name" placeholder="Nombre del profesional" oninput="saveMeta()">
+            </div>
+            <div class="form-group">
+              <label>Objetivo</label>
+              <input type="text" id="client-goal" placeholder="Objetivo del plan" oninput="saveMeta()">
+            </div>
+            <div class="form-group">
+              <label>Estructura Semanal</label>
+              <select id="split-type" onchange="saveMeta()">
+                <option value="Full Body 2 Dias">Full Body (2 veces/sem)</option>
+                <option value="Full Body 3 Dias">Full Body (3 veces/sem)</option>
+                <option value="Split por Patrones 4 Dias">Split por Patrones (4 veces/sem)</option>
+                <option value="Split por Patrones 5 Dias">Split por Patrones (5 veces/sem)</option>
+                <option value="Personalizado">Personalizado</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Fecha de Inicio</label>
+              <input type="date" id="start-date" oninput="saveMeta()">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>Notas Internas (No salen en el PDF)</label>
+              <input type="text" id="client-notes" placeholder="Observaciones para el entrenador..." oninput="saveMeta()">
+            </div>
           </div>
         </div>
 
-        <div class="client-form">
-          <div class="form-group">
-            <label>Nombre del Cliente / Grupo</label>
-            <input type="text" id="client-name" placeholder="Nombre del alumno" oninput="saveMeta()">
-          </div>
-          <div class="form-group">
-            <label>Telefono del Cliente (Login Alumno)</label>
-            <input type="tel" id="client-phone" placeholder="Ej: 1123456789" oninput="saveCoachPhoneToMeta()">
-          </div>
-          <div class="form-group">
-            <label>Entrenador</label>
-            <input type="text" id="coach-name" placeholder="Nombre del profesional" oninput="saveMeta()">
-          </div>
-          <div class="form-group">
-            <label>Objetivo</label>
-            <input type="text" id="client-goal" placeholder="Objetivo del plan" oninput="saveMeta()">
-          </div>
-          <div class="form-group">
-            <label>Estructura Semanal</label>
-            <select id="split-type" onchange="saveMeta()">
-              <option value="Full Body 3 Dias">Full Body (3 veces/sem)</option>
-              <option value="Split por Patrones 4 Dias">Split por Patrones (4 veces/sem)</option>
-              <option value="Split por Patrones 5 Dias">Split por Patrones (5 veces/sem)</option>
-              <option value="Personalizado">Personalizado</option>
+        <div class="card">
+          <div class="card-title">
+            <span>Referencia de Fase (Interno)</span>
+            <select id="nasm-phase-select" onchange="updateNASMAssistant()">
+              <option value="1">Fase 1: Estabilizacion</option>
+              <option value="2">Fase 2: Fuerza Resistencia</option>
+              <option value="3" selected>Fase 3: Hipertrofia</option>
+              <option value="4">Fase 4: Fuerza Maxima</option>
+              <option value="5">Fase 5: Potencia</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Fecha de Inicio</label>
-            <input type="date" id="start-date" oninput="saveMeta()">
-          </div>
-          <div class="form-group" style="grid-column: span 2;">
-            <label>Notas Internas (No salen en el PDF)</label>
-            <input type="text" id="client-notes" placeholder="Observaciones para el entrenador..." oninput="saveMeta()">
-          </div>
+          <div class="nasm-assistant-box" id="nasm-assistant-content"></div>
         </div>
       </div>
 
-      <!-- REFERENCIA INTERNA DE FASE -->
-      <div class="card">
-        <div class="card-title">
-          <span>Referencia de Fase (Interno)</span>
-          <select id="nasm-phase-select" onchange="updateNASMAssistant()">
-            <option value="1">Fase 1: Estabilizacion</option>
-            <option value="2">Fase 2: Fuerza Resistencia</option>
-            <option value="3" selected>Fase 3: Hipertrofia</option>
-            <option value="4">Fase 4: Fuerza Maxima</option>
-            <option value="5">Fase 5: Potencia</option>
+      <div class="control-strip no-print">
+        <div class="strip-section">
+          <strong style="font-size:0.76rem; color:var(--text-muted);">Rutinas Guardadas:</strong>
+          <select id="preset-routine-select" style="min-width:220px;">
+            <option value="">-- Seleccionar Rutina --</option>
+          </select>
+          <button class="btn btn-primary" onclick="loadPresetRoutine()">Cargar Rutina</button>
+          <button class="btn btn-success" onclick="saveRoutineToCloud()">Guardar Rutina en Excel</button>
+          <button class="btn btn-danger" onclick="deleteSelectedRoutine()">Eliminar</button>
+        </div>
+
+        <div class="strip-section">
+          <strong style="font-size:0.76rem; color:var(--text-muted);">Progresion Semanal (Sem 1 a 4):</strong>
+          <button class="btn btn-warning" onclick="applyProgression(2.5)">+2.5%</button>
+          <button class="btn btn-warning" onclick="applyProgression(5)">+5%</button>
+          <select id="rounding-select">
+            <option value="0.5">Redondeo 0.5 kg</option>
+            <option value="1" selected>Redondeo 1 kg</option>
+            <option value="2.5">Redondeo 2.5 kg</option>
           </select>
         </div>
-        <div class="nasm-assistant-box" id="nasm-assistant-content"></div>
-      </div>
-    </div>
-
-    <!-- BARRA DE RUTINAS Y PROGRESION -->
-    <div class="control-strip no-print">
-      <div class="strip-section">
-        <strong style="font-size:0.76rem; color:var(--text-muted);">Rutinas Guardadas:</strong>
-        <select id="preset-routine-select" style="min-width:220px;">
-          <option value="">-- Seleccionar Rutina --</option>
-        </select>
-        <button class="btn btn-primary" onclick="loadPresetRoutine()">Cargar Rutina</button>
-        <button class="btn btn-success" onclick="saveRoutineToCloud()">Guardar Rutina en Excel</button>
-        <button class="btn btn-danger" onclick="deleteSelectedRoutine()">Eliminar</button>
       </div>
 
-      <div class="strip-section">
-        <strong style="font-size:0.76rem; color:var(--text-muted);">Progresion Semanal (Sem 1 a 4):</strong>
-        <button class="btn btn-warning" onclick="applyProgression(2.5)">+2.5%</button>
-        <button class="btn btn-warning" onclick="applyProgression(5)">+5%</button>
-        <select id="rounding-select">
-          <option value="0.5">Redondeo 0.5 kg</option>
-          <option value="1" selected>Redondeo 1 kg</option>
-          <option value="2.5">Redondeo 2.5 kg</option>
-        </select>
+      <div class="tabs-bar no-print">
+        <div class="day-tabs" id="day-tabs-container"></div>
+        <button class="btn" onclick="addDay()">+ Agregar Dia</button>
       </div>
-    </div>
 
-    <!-- PESTANAS DE DIAS -->
-    <div class="tabs-bar no-print">
-      <div class="day-tabs" id="day-tabs-container"></div>
-      <button class="btn" onclick="addDay()">+ Agregar Dia</button>
-    </div>
-
-    <!-- PLANIFICADOR ACTIVO -->
-    <div id="planner-view" class="no-print">
-      <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-        <h2 id="current-day-title" style="font-size:1.05rem; color:var(--accent);">Dia 1</h2>
-        <input type="text" id="day-focus-input" placeholder="Enfoque de la sesion (Opcional)" style="width:340px; max-width:100%;" oninput="saveDayFocus()">
+      <div id="planner-view" class="no-print">
+        <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <h2 id="current-day-title" style="font-size:1.05rem; color:var(--accent);">Dia 1</h2>
+          <input type="text" id="day-focus-input" placeholder="Enfoque de la sesion (Opcional)" style="width:340px; max-width:100%;" oninput="saveDayFocus()">
+        </div>
+        <div id="blocks-container"></div>
       </div>
-      <div id="blocks-container"></div>
     </div>
   </main>
 
-  <!-- =====================================================================
-       VISTA EXCLUSIVA DE SOLO LECTURA PARA EL USUARIO / ALUMNO
-       ===================================================================== -->
+  <!-- PORTAL DEL ALUMNO -->
   <section id="student-portal-view" class="section-collapsed no-print">
     <header class="top-navbar" style="position:sticky; top:0; z-index:90;">
       <div class="brand-title">
@@ -239,12 +242,10 @@
     </header>
 
     <div class="main-container" style="margin-top:16px;">
-      <!-- SECCION 1: RUTINAS ASIGNADAS AL USUARIO -->
       <div id="student-routines-section">
         <div id="student-routines-content"></div>
       </div>
 
-      <!-- SECCION 2: LISTA DE EJERCICIOS (SOLO LECTURA) -->
       <div id="student-exercises-section" class="section-collapsed">
         <div class="card">
           <div class="card-title">
@@ -258,10 +259,10 @@
     </div>
   </section>
 
-  <!-- CONTENEDOR COMPARTIDO DE IMPRESION / PDF A4 -->
+  <!-- CONTENEDOR DE IMPRESIÓN A4 -->
   <div id="print-all-days-container"></div>
 
-  <!-- PANEL LATERAL DE BIBLIOTECA (EXCLUSIVO ENTRENADOR) -->
+  <!-- PANEL LATERAL DE BIBLIOTECA -->
   <aside class="library-drawer no-print" id="library-drawer">
     <div class="drawer-header">
       <div>
@@ -296,12 +297,13 @@
     </div>
   </aside>
 
-  <!-- MODULOS JAVASCRIPT -->
+  <!-- MÓDULOS JAVASCRIPT -->
   <script src="core.js"></script>
   <script src="cloud.js"></script>
   <script src="library.js"></script>
   <script src="planner.js"></script>
   <script src="ui-pwa.js"></script>
   <script src="auth.js"></script>
+  <script src="generator.js"></script>
 </body>
 </html>

@@ -104,9 +104,10 @@ function renderBlocks() {
             rows.map((r, rIdx) => `<tr>
               <td><input class="input-sm" value="${escapeHtml(r.order)}" oninput="updateCell('${b.key}',${rIdx},'order',this.value)"></td>
               <td class="col-ex">
-                <div style="display:flex;gap:5px;align-items:center;">
-                  <input class="input-exercise-name" value="${escapeHtml(r.name)}" placeholder="Escribir nombre del ejercicio..." oninput="updateCell('${b.key}',${rIdx},'name',this.value)">
-                  <button class="btn no-print" style="padding:6px 9px;font-size:0.75rem;" title="Guardar ejercicio en Biblioteca" onclick="quickSaveRowExercise('${b.key}',${rIdx})">+</button>
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <input class="input-exercise-name" value="${escapeHtml(r.name)}" placeholder="Escribir o editar ejercicio..." oninput="updateCell('${b.key}',${rIdx},'name',this.value)">
+                  <button class="btn btn-icon-action no-print" title="Rotar por otro ejercicio del mismo patrón" onclick="rotateRowExercise('${b.key}',${rIdx})">Rotar</button>
+                  <button class="btn btn-icon-action no-print" title="Guardar este nombre en la Biblioteca" onclick="quickSaveRowExercise('${b.key}',${rIdx})">+</button>
                 </div>
               </td>
               <td><select class="input-full" style="min-width:145px;" onchange="updateCell('${b.key}',${rIdx},'pattern',this.value)">${buildPatternOptions(r.pattern)}</select></td>
