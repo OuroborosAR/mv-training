@@ -4,61 +4,33 @@
 
 function setupInstallablePWA() {
   try {
-    const generateIconPNG = (size) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#0f172a";
-      ctx.fillRect(0, 0, size, size);
-      ctx.strokeStyle = "#38bdf8";
-      ctx.lineWidth = Math.max(4, size * 0.04);
-      ctx.strokeRect(size * 0.06, size * 0.06, size * 0.88, size * 0.88);
-      ctx.fillStyle = "#38bdf8";
-      ctx.font = `bold ${Math.round(size * 0.36)}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("PT", size / 2, size / 2);
-      return canvas.toDataURL("image/png");
-    };
+    // 1. Enlazar manifest.json real compatible con GitHub Pages
+    if (!document.querySelector('link[rel="manifest"]')) {
+      const manifestLink = document.createElement("link");
+      manifestLink.rel = "manifest";
+      manifestLink.href = "./manifest.json";
+      document.head.appendChild(manifestLink);
+    }
 
-    const icon192 = generateIconPNG(192);
-    const icon512 = generateIconPNG(512);
+    // 2. Registrar Service Worker para habilitar la instalacion en Android
+    if ("serviceWorker" in navigator && window.location.protocol.startsWith("http")) {
+      navigator.serviceWorker.register("./sw.js").catch((err) => {
+        console.warn("Service Worker no registrado:", err);
+      });
+    }
 
-    const appleIcon = document.createElement("link");
-    appleIcon.rel = "apple-touch-icon";
-    appleIcon.href = icon192;
-    document.head.appendChild(appleIcon);
-
-    const cleanStartUrl = window.location.origin + window.location.pathname;
-    const manifestObj = {
-      id: cleanStartUrl,
-      name: "Planificador de Entrenamiento",
-      short_name: "Planificador",
-      description: "Planificador de clases por patrones de movimiento",
-      start_url: cleanStartUrl,
-      scope: window.location.origin + "/",
-      display: "standalone",
-      background_color: "#0f172a",
-      theme_color: "#0f172a",
-      orientation: "any",
-      icons: [
-        { src: icon192, sizes: "192x192", type: "image/png", purpose: "any" },
-        { src: icon512, sizes: "512x512", type: "image/png", purpose: "any maskable" }
-      ]
-    };
-
-    const manifestStr = encodeURIComponent(JSON.stringify(manifestObj));
-    const manifestLink = document.createElement("link");
-    manifestLink.rel = "manifest";
-    manifestLink.href = `data:application/manifest+json;charset=utf-8,${manifestStr}`;
-    document.head.appendChild(manifestLink);
-
+    // 3. Capturar evento de instalacion de Chrome
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
       deferredInstallPrompt = e;
       const btn = document.getElementById("btn-install-pwa");
       if (btn) btn.style.display = "inline-flex";
+    });
+
+    window.addEventListener("appinstalled", () => {
+      deferredInstallPrompt = null;
+      const btn = document.getElementById("btn-install-pwa");
+      if (btn) btn.style.display = "none";
     });
   } catch (err) {
     console.warn("Aviso PWA:", err);
@@ -66,7 +38,10 @@ function setupInstallablePWA() {
 }
 
 async function installPWA() {
-  if (!deferredInstallPrompt) return;
+  if (!deferredInstallPrompt) {
+    alert("Para instalarla: toca los 3 puntos arriba a la derecha en Chrome y selecciona 'Instalar aplicacion' o 'Agregar a la pantalla principal'.");
+    return;
+  }
   deferredInstallPrompt.prompt();
   await deferredInstallPrompt.userChoice;
   deferredInstallPrompt = null;
