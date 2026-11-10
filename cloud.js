@@ -1,5 +1,5 @@
 // =========================================================================
-// CLOUD.JS: CONEXION CON GOOGLE SHEETS, CLIENTES, RUTINAS Y RESPALDO JSON
+// CLOUD.JS: CONEXION AUTENTICADA CON GOOGLE SHEETS
 // =========================================================================
 
 function toggleCloudBar() {
@@ -33,13 +33,16 @@ function saveSheetUrl() {
 }
 
 async function syncFromGoogleSheet(showAlert) {
-  if (!appState.sheetUrl) {
-    if (showAlert) alert("Pegue primero la URL de su Google Sheet en la barra de conexion.");
-    return;
-  }
+  if (!appState.sheetUrl) return;
+  if (!currentSession || currentSession.role !== "coach" || !currentSession.coachPin) return;
+
   setCloudStatus("Sincronizando...", "var(--accent)");
   try {
-    const res = await fetch(appState.sheetUrl + "?t=" + Date.now());
+    const res = await fetch(appState.sheetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "loginCoach", pin: currentSession.coachPin })
+    });
     const data = await res.json();
     if (data.status === "ok") {
       appState.exercises = data.exercises || [];
@@ -53,11 +56,13 @@ async function syncFromGoogleSheet(showAlert) {
       renderAll();
       setCloudStatus("Guardado en Excel", "var(--series-green)");
       if (showAlert) alert("Datos sincronizados correctamente con Google Sheets.");
+    } else if (showAlert) {
+      alert(data.message || "Error de autenticacion con Google Sheets.");
     }
   } catch (err) {
     console.error(err);
     setCloudStatus("Modo Local (Sin red)", "var(--series-yellow)");
-    if (showAlert) alert("No se pudo conectar con Google Sheets. Verifique el enlace /exec.");
+    if (showAlert) alert("No se pudo conectar con Google Sheets.");
   }
 }
 
@@ -66,18 +71,25 @@ async function sendToGoogleSheet(payload) {
   if (!appState.sheetUrl) return;
   setCloudStatus("Guardando en Excel...", "var(--accent)");
   try {
-    await fetch(appState.sheetUrl, {
+    const securePayload = Object.assign({}, payload, {
+      pin: (currentSession && currentSession.coachPin) ? currentSession.coachPin : ""
+    });
+    const res = await fetch(appState.sheetUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(securePayload)
     });
-    setCloudStatus("Guardado en Excel", "var(--series-green)");
+    const data = await res.json();
+    if (data.status === "ok") {
+      setCloudStatus("Guardado en Excel", "var(--series-green)");
+    } else {
+      setCloudStatus("Error de permisos", "var(--series-red)");
+    }
   } catch (e) {
     setCloudStatus("Guardado local", "var(--series-yellow)");
   }
 }
 
-// GESTION DE DESPLEGABLES Y CLIENTES
 function populateDropdowns() {
   const cliSel = document.getElementById("client-select");
   if (cliSel) {
@@ -147,7 +159,6 @@ async function deleteSelectedClient() {
   await sendToGoogleSheet({ action: "deleteClient", id });
 }
 
-// GESTION DE RUTINAS EN GOOGLE SHEETS
 async function saveRoutineToCloud() {
   const defaultName = appState.meta.clientName ? `Rutina - ${appState.meta.clientName}` : "Nueva Rutina";
   const name = prompt("Nombre de la rutina para guardar:", defaultName);

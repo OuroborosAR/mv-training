@@ -1,34 +1,22 @@
 // =========================================================================
-// AUTH.JS: PANTALLA DE CARGA, LOGEO POR ROLES Y PORTAL INTERACTIVO DE ALUMNO
+// AUTH.JS: VALIDACION EN SERVIDOR (GOOGLE SHEETS) SIN CLAVES EN EL FRONTEND
 // =========================================================================
 
-const COACH_PIN = "1234"; // Cambia este PIN por tu clave personal de entrenador
-const SESSION_KEY = "planificador_active_session_v1";
+const SESSION_KEY = "planificador_active_session_v2";
 
 let currentSession = {
-  role: null,       // "coach" | "student"
+  role: null,        // "coach" | "student"
+  coachPin: "",      // Solo se guarda en el dispositivo del entrenador tras validar en Google
   clientName: "",
   clientPhone: "",
   activeRoutineId: "",
   activeStudentDayIdx: 0,
-  studentTab: "routines", // "routines" | "exercises"
+  studentTab: "routines",
   studentExFilter: "ALL"
 };
 
-// Se ejecuta al iniciar la aplicacion para mostrar la carga y sincronizar
 window.addEventListener("DOMContentLoaded", async () => {
-  showAuthLoading("Sincronizando rutinas y ejercicios con la nube...");
-
-  if (appState.sheetUrl && typeof syncFromGoogleSheet === "function") {
-    try {
-      await syncFromGoogleSheet(false);
-    } catch (e) {
-      console.warn("Iniciando con datos locales.");
-    }
-  }
-
-  extractPhonesFromClientNotes();
-  restoreOrShowLogin();
+  await restoreOrShowLogin();
 });
 
 function showAuthLoading(msg) {
@@ -43,14 +31,16 @@ function showAuthLoading(msg) {
   if (msgEl && msg) msgEl.textContent = msg;
 }
 
-function showLoginPrompt() {
+function showLoginPrompt(errorMsg = "") {
   const overlay = document.getElementById("auth-overlay");
   const loadingBox = document.getElementById("auth-loading-box");
   const loginBox = document.getElementById("auth-login-box");
+  const errEl = document.getElementById("auth-error-msg");
 
   if (overlay) overlay.classList.remove("section-collapsed");
   if (loadingBox) loadingBox.classList.add("section-collapsed");
   if (loginBox) loginBox.classList.remove("section-collapsed");
+  if (errEl) errEl.textContent = errorMsg;
 }
 
 function switchAuthTab(mode) {
@@ -76,20 +66,6 @@ function switchAuthTab(mode) {
   }
 }
 
-function normalizePhone(str) {
-  return String(str || "").replace(/\D/g, "");
-}
-
-// Garantiza compatibilidad guardando el telefono dentro de las notas del Excel
-function extractPhonesFromClientNotes() {
-  (appState.clients || []).forEach(c => {
-    const match = String(c.notes || "").match(/\[TEL:([^\]]+)\]/);
-    if (match && !c.phone) {
-      c.phone = match[1].trim();
-    }
-  });
-}
-
 function syncCoachPhoneField() {
   const phoneInput = document.getElementById("client-phone");
   if (!phoneInput) return;
@@ -113,81 +89,121 @@ function saveCoachPhoneToMeta() {
   saveToLocalStorage();
 }
 
-function loginAsCoach() {
+// LOGIN DE ENTRENADOR VALIDADO EN GOOGLE APPS SCRIPT
+async function loginAsCoach(pinOverride) {
   const pinInput = document.getElementById("auth-coach-pin");
-  const errEl = document.getElementById("auth-error-msg");
-  if (pinInput.value.trim() !== COACH_PIN) {
-    errEl.textContent = "PIN de entrenador incorrecto.";
+  const pinToUse = (pinOverride !== undefined ? pinOverride : (pinInput ? pinInput.value : "")).trim();
+
+  if (!pinToUse) {
+    showLoginPrompt("Ingresa tu clave de entrenador.");
     return;
   }
-  pinInput.value = "";
-  errEl.textContent = "";
-  currentSession = { role: "coach", clientName: "", clientPhone: "" };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(currentSession));
-  applyRoleView();
+
+  showAuthLoading("Verificando clave de entrenador en Google Sheets...");
+
+  try {
+    const res = await fetch(appState.sheetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "loginCoach", pin: pinToUse })
+    });
+    const data = await res.json();
+
+    if (data.status !== "ok") {
+      localStorage.removeItem(SESSION_KEY);
+      showLoginPrompt(data.message || "Clave de entrenador incorrecta.");
+      switchAuthTab("coach");
+      return;
+    }
+
+    appState.exercises = data.exercises || [];
+    appState.routines = data.routines || [];
+    appState.clients = data.clients || [];
+    if (appState.days.length === 0 && appState.routines.length > 0) {
+      appState.days = JSON.parse(JSON.stringify(appState.routines[0].days));
+    }
+
+    if (pinInput) pinInput.value = "";
+    currentSession = {
+      role: "coach",
+      coachPin: pinToUse,
+      clientName: "",
+      clientPhone: ""
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(currentSession));
+    saveToLocalStorage();
+    populateDropdowns();
+    setCloudStatus("Guardado en Excel", "var(--series-green)");
+    applyRoleView();
+  } catch (err) {
+    showLoginPrompt("Error de red al conectar con Google Sheets.");
+    switchAuthTab("coach");
+  }
 }
 
-function loginAsStudent() {
-  const rawInput = document.getElementById("auth-student-input").value.trim();
-  const errEl = document.getElementById("auth-error-msg");
+// LOGIN DE ALUMNO VALIDADO EN GOOGLE APPS SCRIPT (SOLO DESCARGA SUS RUTINAS)
+async function loginAsStudent(inputOverride) {
+  const studentEl = document.getElementById("auth-student-input");
+  const rawInput = (inputOverride !== undefined ? inputOverride : (studentEl ? studentEl.value : "")).trim();
 
   if (!rawInput) {
-    errEl.textContent = "Ingresa tu numero de telefono o nombre.";
+    showLoginPrompt("Ingresa tu numero de telefono o nombre.");
     return;
   }
 
-  const inputDigits = normalizePhone(rawInput);
-  const inputLower = rawInput.toLowerCase();
+  showAuthLoading("Buscando tus rutinas asignadas...");
 
-  let matchedClientName = "";
-
-  const foundClient = (appState.clients || []).find(c => {
-    const cPhoneDigits = normalizePhone(c.phone || c.notes || "");
-    const phoneMatch = inputDigits.length >= 6 && cPhoneDigits.includes(inputDigits);
-    const nameMatch = String(c.name || "").trim().toLowerCase() === inputLower;
-    return phoneMatch || nameMatch;
-  });
-
-  if (foundClient) {
-    matchedClientName = foundClient.name;
-  } else {
-    const foundRoutine = (appState.routines || []).find(r => {
-      const rPhoneDigits = normalizePhone(r.notes || "");
-      const phoneMatch = inputDigits.length >= 6 && rPhoneDigits.includes(inputDigits);
-      const nameMatch = String(r.clientName || "").trim().toLowerCase() === inputLower;
-      return phoneMatch || nameMatch;
+  try {
+    const res = await fetch(appState.sheetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "loginStudent", studentInput: rawInput })
     });
-    if (foundRoutine) matchedClientName = foundRoutine.clientName;
-  }
+    const data = await res.json();
 
-  if (!matchedClientName) {
-    errEl.textContent = "No encontramos rutinas asociadas a ese telefono o nombre.";
-    return;
-  }
+    if (data.status !== "ok") {
+      localStorage.removeItem(SESSION_KEY);
+      showLoginPrompt(data.message || "No encontramos rutinas para ese telefono o nombre.");
+      switchAuthTab("student");
+      return;
+    }
 
-  errEl.textContent = "";
-  document.getElementById("auth-student-input").value = "";
-  currentSession = {
-    role: "student",
-    clientName: matchedClientName,
-    clientPhone: rawInput,
-    activeRoutineId: "",
-    activeStudentDayIdx: 0,
-    studentTab: "routines",
-    studentExFilter: "ALL"
-  };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(currentSession));
-  applyRoleView();
+    // El alumno solo recibe el catalogo de ejercicios y sus propias rutinas
+    appState.exercises = data.exercises || [];
+    appState.routines = data.routines || [];
+    appState.clients = [];
+
+    if (studentEl) studentEl.value = "";
+    currentSession = {
+      role: "student",
+      coachPin: "",
+      clientName: data.clientName,
+      clientPhone: rawInput,
+      activeRoutineId: (data.routines && data.routines[0]) ? data.routines[0].id : "",
+      activeStudentDayIdx: 0,
+      studentTab: "routines",
+      studentExFilter: "ALL"
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(currentSession));
+    saveToLocalStorage();
+    applyRoleView();
+  } catch (err) {
+    showLoginPrompt("No se pudo conectar con la base de datos.");
+    switchAuthTab("student");
+  }
 }
 
-function restoreOrShowLogin() {
+async function restoreOrShowLogin() {
   const saved = localStorage.getItem(SESSION_KEY);
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      if (parsed && (parsed.role === "coach" || (parsed.role === "student" && parsed.clientName))) {
-        currentSession = Object.assign(currentSession, parsed);
-        applyRoleView();
+      if (parsed && parsed.role === "coach" && parsed.coachPin) {
+        await loginAsCoach(parsed.coachPin);
+        return;
+      }
+      if (parsed && parsed.role === "student" && parsed.clientPhone) {
+        await loginAsStudent(parsed.clientPhone);
         return;
       }
     } catch (e) {}
@@ -199,6 +215,7 @@ function logoutSession() {
   localStorage.removeItem(SESSION_KEY);
   currentSession = {
     role: null,
+    coachPin: "",
     clientName: "",
     clientPhone: "",
     activeRoutineId: "",
@@ -206,6 +223,9 @@ function logoutSession() {
     studentTab: "routines",
     studentExFilter: "ALL"
   };
+  appState.clients = [];
+  appState.routines = [];
+  saveToLocalStorage();
   const drawer = document.getElementById("library-drawer");
   if (drawer) drawer.classList.remove("open");
   showLoginPrompt();
@@ -248,10 +268,7 @@ function switchStudentTab(tabName) {
 }
 
 function getStudentAssignedRoutines() {
-  const target = String(currentSession.clientName || "").trim().toLowerCase();
-  return (appState.routines || []).filter(r =>
-    String(r.clientName || "").trim().toLowerCase() === target
-  );
+  return appState.routines || [];
 }
 
 function selectStudentRoutine(routineId) {
@@ -297,17 +314,25 @@ async function syncStudentRoutineWeights(routineId, showManualAlert = false) {
   if (!routine) return;
 
   saveToLocalStorage();
-  if (!appState.sheetUrl) {
-    setStudentSaveStatus("Guardado en este dispositivo", "var(--series-green)");
-    if (showManualAlert) alert("Pesos guardados en la memoria del dispositivo.");
-    return;
-  }
-
   setStudentSaveStatus("Guardando pesos en la nube...", "var(--accent)");
   try {
-    await sendToGoogleSheet({ action: "saveRoutine", routine: routine });
-    setStudentSaveStatus("Pesos sincronizados", "var(--series-green)");
-    if (showManualAlert) alert("Tus pesos fueron guardados correctamente.");
+    const res = await fetch(appState.sheetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "saveStudentWeights",
+        routineId: routine.id,
+        clientName: currentSession.clientName,
+        days: routine.days
+      })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      setStudentSaveStatus("Pesos sincronizados", "var(--series-green)");
+      if (showManualAlert) alert("Tus pesos fueron guardados correctamente.");
+    } else {
+      setStudentSaveStatus("Error al guardar", "var(--series-red)");
+    }
   } catch (err) {
     setStudentSaveStatus("Guardado local (Sin red)", "var(--series-yellow)");
   }

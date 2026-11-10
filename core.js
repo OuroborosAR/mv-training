@@ -2,7 +2,6 @@
 // CORE.JS: ESTADO GLOBAL, CONSTANTES Y ALMACENAMIENTO LOCAL
 // =========================================================================
 
-// Si pegas tu link /exec entre las comillas, se conectara automaticamente en cualquier dispositivo
 const URL_GOOGLE_SHEET_FIJA = "https://script.google.com/macros/s/AKfycbyUW5XWuSn7u99gfiZRwj1DLOtC6Pt6XaqWaPT3QGGI8lpSj9dm3-kPBPkIMUg6N-sU/exec";
 
 const STORAGE_KEY = "planificador_cloud_clean_v7";
@@ -42,7 +41,7 @@ const BLOCK_DEFINITIONS = [
 ];
 
 let appState = {
-  sheetUrl: URL_GOOGLE_SHEET_FIJA || "",
+  sheetUrl: URL_GOOGLE_SHEET_FIJA,
   meta: {
     clientId: "",
     clientName: "",
@@ -77,6 +76,7 @@ function loadFromLocalStorage() {
   if (saved) {
     try { Object.assign(appState, JSON.parse(saved)); } catch (e) {}
   }
+  appState.sheetUrl = URL_GOOGLE_SHEET_FIJA || appState.sheetUrl;
   if (!appState.days || appState.days.length === 0) {
     appState.days = [createDefaultDay(1), createDefaultDay(2), createDefaultDay(3)];
   }
@@ -147,17 +147,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (typeof setupScrollHeaderBehavior === "function") setupScrollHeaderBehavior();
   if (typeof initStaticControls === "function") initStaticControls();
   loadFromLocalStorage();
-
-  if (URL_GOOGLE_SHEET_FIJA) {
-    appState.sheetUrl = URL_GOOGLE_SHEET_FIJA;
-  }
-  if (!appState.sheetUrl) {
-    document.getElementById("cloud-bar").classList.remove("section-collapsed");
-  } else {
-    document.getElementById("cloud-bar").classList.add("section-collapsed");
-    if (typeof syncFromGoogleSheet === "function") syncFromGoogleSheet(false);
-  }
-
+  document.getElementById("cloud-bar").classList.add("section-collapsed");
   syncMetaInputs();
   updateNASMAssistant();
   renderAll();
