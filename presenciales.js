@@ -45,6 +45,13 @@ function formatearFechaSinAnio(fechaISO) {
   return partes.length === 3 ? `${partes[2]}/${partes[1]}` : fechaISO;
 }
 
+// Obtiene el monto real contabilizado de un registro
+function obtenerMontoRegistro(reg, valorBaseGrupo) {
+  if (!reg || reg.status !== "DADA") return 0;
+  const montoGuardado = Number(reg.amount);
+  return montoGuardado > 0 ? montoGuardado : (Number(valorBaseGrupo) || 25000);
+}
+
 // Inyecta estilos adaptables para celular y gráficos financieros sin tocar styles.css
 function injectPresencialesStyles() {
   if (document.getElementById("presenciales-injected-styles")) return;
@@ -325,7 +332,7 @@ async function syncPresencialToSheet(payload) {
   }
 }
 
-// Calcula las métricas financieras de un mes ("YYYY-MM")
+// Calcula las métricas financieras de un mes ("YYYY-MM") sumando el monto real de cada clase dada
 function calcularMetricasMes(yearMonth) {
   const grupos = appState.presencialesGrupos || [];
   const registros = (appState.presencialesRegistros || []).filter(r =>
@@ -348,7 +355,7 @@ function calcularMetricasMes(yearMonth) {
     const suspendidas = regsGrupo.filter(r => r.status === "SUSPENDIDA");
     const valorUnitario = Number(g.price) || 25000;
 
-    const ganadoGrupo = dadas.length * valorUnitario;
+    const ganadoGrupo = dadas.reduce((acc, r) => acc + obtenerMontoRegistro(r, valorUnitario), 0);
     const perdidoGrupo = suspendidas.length * valorUnitario;
     const pagado = isGroupMonthPaid(g.id, yearMonth);
 
@@ -449,7 +456,7 @@ function renderGruposView(container) {
       <div class="client-form" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
         <div class="form-group">
           <label>Nombre del Grupo / Alumno</label>
-          <input type="text" id="p-grp-name" placeholder="Ej: Grupo Carregal o Juan Perez">
+          <input type="text" id="p-grp-name" placeholder="Ej: Grupo Carregal o Duo 20k/40k">
         </div>
         <div class="form-group">
           <label>Integrantes</label>
@@ -492,7 +499,7 @@ function renderGruposView(container) {
               <th>Nombre</th>
               <th>Integrantes</th>
               <th>Dias y Horarios</th>
-              <th>Valor ($)</th>
+              <th>Valor Base ($)</th>
               <th>WhatsApp</th>
               <th>Estado</th>
               <th style="width:170px;">Acciones</th>
@@ -584,7 +591,7 @@ function selectGroupForAttendance(groupId) {
 }
 
 // ============================================================================
-// 2. REGISTRO DE ASISTENCIA Y SUSPENSIONES CON MOTIVO OBLIGATORIO
+// 2. REGISTRO DE ASISTENCIA, OPCIÓN 1 PERSONA (50%) Y SUSPENSIONES
 // ============================================================================
 function renderAsistenciaView(container) {
   const grupos = appState.presencialesGrupos || [];
@@ -599,6 +606,8 @@ function renderAsistenciaView(container) {
 
   const currentGroup = grupos.find(g => g.id === presencialState.selectedGroupId) || grupos[0];
   const currentMonth = presencialState.selectedMonth;
+  const valorBase = Number(currentGroup.price) || 25000;
+  const valorMitad = Math.round(valorBase / 2);
 
   const registrosMes = (appState.presencialesRegistros || [])
     .filter(r => r.groupId === currentGroup.id && String(r.date || "").startsWith(currentMonth))
@@ -627,10 +636,10 @@ function renderAsistenciaView(container) {
           <thead>
             <tr>
               <th style="width:90px;">Fecha</th>
-              <th style="width:125px;">Dia</th>
-              <th style="width:160px;">Estado de Clase</th>
-              <th>Motivo de Suspension / Nota de Cambio</th>
-              <th style="width:110px; text-align:center;">Valor ($)</th>
+              <th style="width:120px;">Dia</th>
+              <th style="width:210px;">Estado de Clase</th>
+              <th>Motivo de Suspension / Nota</th>
+              <th style="width:120px; text-align:center;">Valor ($)</th>
               <th style="width:65px;">Borrar</th>
             </tr>
           </thead>
@@ -643,21 +652,24 @@ function renderAsistenciaView(container) {
               </tr>
             ` : registrosMes.map(reg => {
               const diaMostrar = obtenerDiaLimpioRegistro(reg, currentGroup.scheduleText);
+              const montoActual = obtenerMontoRegistro(reg, valorBase);
+              const esMitad = reg.status === "DADA" && montoActual === valorMitad && valorBase !== valorMitad;
               return `
               <tr>
                 <td><strong>${escapeHtml(formatearFechaSinAnio(reg.date))}</strong></td>
                 <td><input type="text" class="input-full" value="${escapeHtml(diaMostrar)}" onchange="updateRecordField('${reg.id}', 'time', this.value)"></td>
                 <td>
                   <select class="input-full" onchange="handleEstadoClaseChange('${reg.id}', this.value)">
-                    <option value="DADA" ${reg.status === 'DADA' ? 'selected' : ''}>Clase Dada</option>
+                    <option value="DADA" ${reg.status === 'DADA' && !esMitad ? 'selected' : ''}>Clase Dada ($${valorBase.toLocaleString('es-AR')})</option>
+                    <option value="DADA_MITAD" ${esMitad ? 'selected' : ''}>1 Persona / Mitad ($${valorMitad.toLocaleString('es-AR')})</option>
                     <option value="SUSPENDIDA" ${reg.status === 'SUSPENDIDA' ? 'selected' : ''}>Suspendida ($0)</option>
                   </select>
                 </td>
                 <td>
                   <input type="text" class="input-full" id="reason_${reg.id}" value="${escapeHtml(reg.reason || '')}" placeholder="Motivo si se suspende o cambio..." onchange="updateRecordField('${reg.id}', 'reason', this.value)">
                 </td>
-                <td style="text-align:center; font-weight:700; color:${reg.status === 'DADA' ? 'var(--series-green)' : 'var(--text-muted)'};">
-                  $${Number(reg.status === 'DADA' ? (reg.amount || currentGroup.price || 25000) : 0).toLocaleString('es-AR')}
+                <td style="text-align:center;">
+                  <input type="number" class="input-full" style="text-align:center; font-weight:700; color:${reg.status === 'DADA' ? 'var(--series-green)' : 'var(--text-muted)'};" value="${montoActual}" ${reg.status === 'SUSPENDIDA' ? 'disabled' : ''} onchange="updateRecordAmount('${reg.id}', this.value)">
                 </td>
                 <td style="text-align:center;">
                   <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="deletePresencialRecord('${reg.id}')">X</button>
@@ -770,17 +782,17 @@ function agregarClaseExtraIndividual(groupId, yearMonth) {
   renderPresencialesModule();
 }
 
-function handleEstadoClaseChange(recordId, newStatus) {
+function handleEstadoClaseChange(recordId, selectedOption) {
   const rec = (appState.presencialesRegistros || []).find(r => r.id === recordId);
   if (!rec) return;
 
   const group = (appState.presencialesGrupos || []).find(g => g.id === rec.groupId);
   const valorClase = group ? (Number(group.price) || 25000) : 25000;
 
-  if (newStatus === "SUSPENDIDA") {
+  if (selectedOption === "SUSPENDIDA") {
     const reasonInput = document.getElementById(`reason_${recordId}`);
     let motivo = reasonInput ? reasonInput.value.trim() : (rec.reason || "");
-    if (!motivo) {
+    if (!motivo || motivo === "1 persona") {
       motivo = prompt("Indica el motivo por el cual se suspendio la clase (Obligatorio):", "") || "";
       if (!motivo.trim()) {
         alert("Debes ingresar un motivo para marcar la clase como suspendida.");
@@ -788,14 +800,30 @@ function handleEstadoClaseChange(recordId, newStatus) {
         return;
       }
     }
+    rec.status = "SUSPENDIDA";
     rec.reason = motivo.trim();
     rec.amount = 0;
+  } else if (selectedOption === "DADA_MITAD") {
+    rec.status = "DADA";
+    rec.amount = Math.round(valorClase / 2);
+    if (!rec.reason) rec.reason = "1 persona";
   } else {
+    rec.status = "DADA";
     rec.amount = valorClase;
+    if (rec.reason === "1 persona") rec.reason = "";
   }
 
-  rec.status = newStatus;
   rec.time = obtenerDiaLimpioRegistro(rec, group ? group.scheduleText : "");
+  rec.updatedAt = new Date().toLocaleDateString();
+  saveToLocalStorage();
+  syncPresencialToSheet({ action: "savePresencialRecord", record: rec });
+  renderPresencialesModule();
+}
+
+function updateRecordAmount(recordId, val) {
+  const rec = (appState.presencialesRegistros || []).find(r => r.id === recordId);
+  if (!rec) return;
+  rec.amount = Math.max(0, parseFloat(val) || 0);
   rec.updatedAt = new Date().toLocaleDateString();
   saveToLocalStorage();
   syncPresencialToSheet({ action: "savePresencialRecord", record: rec });
@@ -866,7 +894,11 @@ function renderLiquidacionView(container) {
           </div>
 
           <div style="font-size:0.79rem; color:var(--text-main); line-height:1.5;">
-            <div><strong>Fechas Dadas (${item.dadas.length}):</strong> ${item.dadas.length > 0 ? item.dadas.map(d => `${formatearFechaSinAnio(d.date)} (${obtenerNombreDiaFecha(d.date)})`).join(", ") : "Ninguna"}</div>
+            <div><strong>Fechas Dadas (${item.dadas.length}):</strong> ${item.dadas.length > 0 ? item.dadas.map(d => {
+              const montoD = obtenerMontoRegistro(d, item.valorUnitario);
+              const acl = montoD !== item.valorUnitario ? ` [$${montoD.toLocaleString('es-AR')}]` : "";
+              return `${formatearFechaSinAnio(d.date)} (${obtenerNombreDiaFecha(d.date)})${acl}`;
+            }).join(", ") : "Ninguna"}</div>
             <div><strong>Fechas Suspendidas (${item.suspendidas.length}):</strong> ${item.suspendidas.length > 0 ? item.suspendidas.map(s => `${formatearFechaSinAnio(s.date)} (${s.reason || 'Sin motivo'})`).join(", ") : "Ninguna"}</div>
           </div>
         </div>
@@ -1063,7 +1095,7 @@ function renderFinanzasView(container) {
 }
 
 // ============================================================================
-// MENSAJE DE WHATSAPP LIMPIO SIN EL AÑO EN LAS FECHAS (DD/MM)
+// MENSAJE DE WHATSAPP LIMPIO (SOPORTA TARIFA FIJA Y TARIFA VARIABLE 20K/40K)
 // ============================================================================
 function enviarResumenWhatsApp(groupId, yearMonth) {
   const group = (appState.presencialesGrupos || []).find(g => g.id === groupId);
@@ -1076,15 +1108,24 @@ function enviarResumenWhatsApp(groupId, yearMonth) {
   const dadas = registros.filter(r => r.status === "DADA");
   const suspendidas = registros.filter(r => r.status === "SUSPENDIDA");
   const valorUnitario = Number(group.price) || 25000;
-  const subtotal = dadas.length * valorUnitario;
+  const subtotal = dadas.reduce((acc, r) => acc + obtenerMontoRegistro(r, valorUnitario), 0);
   const nombreMes = obtenerNombreMes(yearMonth);
+
+  // Detecta si en el mes hubo días con valor diferente (ej. $20.000 cuando fue 1 persona y $40.000 cuando fueron los 2)
+  const tieneMontosVariables = dadas.some(d => obtenerMontoRegistro(d, valorUnitario) !== valorUnitario);
 
   let mensaje = `Paso las clases del mes de ${nombreMes}:\n\n`;
   mensaje += `*Clases dadas (${dadas.length}):*\n`;
   if (dadas.length > 0) {
     dadas.forEach(d => {
       const diaNombre = obtenerNombreDiaFecha(d.date);
-      mensaje += `• ${formatearFechaSinAnio(d.date)} (${diaNombre})\n`;
+      const montoDia = obtenerMontoRegistro(d, valorUnitario);
+      if (tieneMontosVariables) {
+        const notaExtra = d.reason ? ` (${d.reason})` : "";
+        mensaje += `• ${formatearFechaSinAnio(d.date)} (${diaNombre}) - $${montoDia.toLocaleString('es-AR')}${notaExtra}\n`;
+      } else {
+        mensaje += `• ${formatearFechaSinAnio(d.date)} (${diaNombre})\n`;
+      }
     });
   } else {
     mensaje += `• Sin clases registradas\n`;
@@ -1098,7 +1139,9 @@ function enviarResumenWhatsApp(groupId, yearMonth) {
     });
   }
 
-  mensaje += `\n*Valor por clase:* $${valorUnitario.toLocaleString('es-AR')}`;
+  if (!tieneMontosVariables) {
+    mensaje += `\n*Valor por clase:* $${valorUnitario.toLocaleString('es-AR')}`;
+  }
   mensaje += `\n*Total a abonar (${dadas.length} clases dadas):* $${subtotal.toLocaleString('es-AR')}`;
 
   const phoneClean = String(group.phone || "").replace(/\D/g, "");
