@@ -1,10 +1,9 @@
 // =========================================================================
-// UI-PWA.JS: ENCABEZADO INTELIGENTE, BOTONES FLOTANTES E INSTALACION PWA
+// UI-PWA.JS: PANEL SUPERIOR SOLO ARRIBA DE TODO + BOTON SERIES Y BIBLIOTECA
 // =========================================================================
 
 function setupInstallablePWA() {
   try {
-    // 1. Enlazar manifest.json real compatible con GitHub Pages
     if (!document.querySelector('link[rel="manifest"]')) {
       const manifestLink = document.createElement("link");
       manifestLink.rel = "manifest";
@@ -12,14 +11,12 @@ function setupInstallablePWA() {
       document.head.appendChild(manifestLink);
     }
 
-    // 2. Registrar Service Worker para habilitar la instalacion en Android
     if ("serviceWorker" in navigator && window.location.protocol.startsWith("http")) {
       navigator.serviceWorker.register("./sw.js").catch((err) => {
         console.warn("Service Worker no registrado:", err);
       });
     }
 
-    // 3. Capturar evento de instalacion de Chrome
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
       deferredInstallPrompt = e;
@@ -53,72 +50,51 @@ function updateHeaderLayoutAndSpacer() {
   const topEl = document.getElementById("top-panel-section");
   const seriesEl = document.getElementById("weekly-series-section");
   const spacer = document.getElementById("header-spacer");
-  const btnTop = document.getElementById("btn-float-top");
   const btnSeries = document.getElementById("btn-float-series");
 
   if (!wrapper || !topEl || !seriesEl || !spacer) return;
 
-  topEl.classList.toggle("section-collapsed", !showTopPanel);
+  // El contenedor general nunca usa scroll-tucked para que Series Semanales
+  // pueda mostrarse u ocultarse libremente con su boton de abajo.
+  wrapper.classList.remove("scroll-tucked");
+
+  // El panel superior SOLO se muestra cuando estamos arriba de todo (scrollY <= 15)
+  const isAtVeryTop = window.scrollY <= 15;
+  topEl.classList.toggle("section-collapsed", !isAtVeryTop);
+
+  // El panel de Series Semanales responde a su boton inferior en cualquier momento
   seriesEl.classList.toggle("section-collapsed", !showSeriesPanel);
 
-  const isTucked = wrapper.classList.contains("scroll-tucked");
-  const activeTopVisible = showTopPanel && !isTucked;
-  const activeSeriesVisible = showSeriesPanel && !isTucked;
-
-  if (btnTop) btnTop.classList.toggle("btn-primary", activeTopVisible);
-  if (btnSeries) btnSeries.classList.toggle("btn-primary", activeSeriesVisible);
+  if (btnSeries) {
+    btnSeries.classList.toggle("btn-primary", showSeriesPanel);
+  }
 
   requestAnimationFrame(() => {
-    spacer.style.height = wrapper.offsetHeight + "px";
+    if (isAtVeryTop) {
+      spacer.style.height = wrapper.offsetHeight + "px";
+    }
   });
 }
 
 function toggleTopPanelManual() {
-  const wrapper = document.getElementById("fixed-header-wrapper");
-  if (wrapper.classList.contains("scroll-tucked")) {
-    wrapper.classList.remove("scroll-tucked");
-    showTopPanel = true;
-  } else {
-    showTopPanel = !showTopPanel;
-  }
-  updateHeaderLayoutAndSpacer();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function toggleWeeklySeriesManual() {
-  const wrapper = document.getElementById("fixed-header-wrapper");
-  if (wrapper.classList.contains("scroll-tucked")) {
-    wrapper.classList.remove("scroll-tucked");
-    showSeriesPanel = true;
-  } else {
-    showSeriesPanel = !showSeriesPanel;
-  }
+  showSeriesPanel = !showSeriesPanel;
   updateHeaderLayoutAndSpacer();
 }
 
 function setupScrollHeaderBehavior() {
-  const wrapper = document.getElementById("fixed-header-wrapper");
+  let wasAtTop = window.scrollY <= 15;
 
   window.addEventListener("scroll", () => {
-    const currentY = window.scrollY;
-    const delta = currentY - lastScrollY;
-
-    if (currentY <= 25) {
-      if (wrapper.classList.contains("scroll-tucked")) {
-        wrapper.classList.remove("scroll-tucked");
-        updateHeaderLayoutAndSpacer();
-      }
-    } else if (delta > 12 && currentY > 90) {
-      if (!wrapper.classList.contains("scroll-tucked")) {
-        wrapper.classList.add("scroll-tucked");
-        updateHeaderLayoutAndSpacer();
-      }
-    } else if (delta < -14) {
-      if (wrapper.classList.contains("scroll-tucked")) {
-        wrapper.classList.remove("scroll-tucked");
-        updateHeaderLayoutAndSpacer();
-      }
+    const isAtTop = window.scrollY <= 15;
+    if (isAtTop !== wasAtTop) {
+      wasAtTop = isAtTop;
+      updateHeaderLayoutAndSpacer();
     }
-    lastScrollY = currentY;
+    lastScrollY = window.scrollY;
   }, { passive: true });
 
   window.addEventListener("resize", updateHeaderLayoutAndSpacer);

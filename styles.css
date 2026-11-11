@@ -25,15 +25,20 @@
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-body {
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
   background: var(--bg-main);
   color: var(--text-main);
   line-height: 1.45;
-  padding-bottom: 85px;
-  overflow-x: hidden;
 }
 
-/* ENCABEZADO FIJO SIN REBOTE DE SCROLL NI ESPACIO VACIO */
+body {
+  padding-bottom: 85px;
+}
+
+/* ENCABEZADO FIJO SUPERIOR */
 .fixed-header-wrapper {
   position: fixed;
   top: 0;
@@ -195,7 +200,7 @@ select:focus, input:focus {
   transition: width 0.25s ease;
 }
 
-/* BARRA FLOTANTE FIJA E INAMOVIBLE */
+/* BARRA FLOTANTE INFERIOR (SOLO SERIES SEMANALES Y BIBLIOTECA) */
 .floating-controls {
   position: fixed;
   bottom: 14px;
@@ -217,6 +222,11 @@ select:focus, input:focus {
   font-size: 0.74rem;
   height: 32px;
   flex-shrink: 0;
+}
+
+/* Ocultamos permanentemente el boton de Panel Superior en la barra flotante */
+#btn-float-top {
+  display: none !important;
 }
 
 /* CONTENEDOR PRINCIPAL */
@@ -553,190 +563,6 @@ table.plan-table td.week-cell {
   display: none;
 }
 
-@media (max-width: 860px) {
-  .top-grid { grid-template-columns: 1fr; }
-  .main-container.drawer-open { margin-right: 0; }
-  .library-drawer { width: 100vw; right: -105vw; }
-}
-
-/* REGLAS DE IMPRESION: 1 DIA EXACTO POR HOJA + ENCABEZADO EN TODAS LAS HOJAS */
-@page {
-  size: A4 portrait;
-  margin: 7mm 9mm;
-}
-
-@media print {
-  html, body {
-    background: #ffffff !important;
-    color: #000000 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    height: auto !important;
-  }
-  .no-print,
-  .fixed-header-wrapper,
-  .floating-controls,
-  .top-grid,
-  .library-drawer,
-  .control-strip,
-  .tabs-bar,
-  #planner-view,
-  #header-spacer {
-    display: none !important;
-  }
-  .main-container, .main-container.drawer-open {
-    max-width: 100% !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  #print-all-days-container {
-    display: block !important;
-    width: 100% !important;
-  }
-
-  .print-day-page {
-    width: 100%;
-    page-break-after: always;
-    break-after: page;
-    page-break-inside: avoid;
-    break-inside: avoid;
-    box-sizing: border-box;
-  }
-  .print-day-page:last-child {
-    page-break-after: auto;
-    break-after: auto;
-  }
-
-  .print-page-client-banner {
-    border: 1px solid #0f172a;
-    background: #f8fafc !important;
-    padding: 5px 10px;
-    margin-bottom: 6px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .print-banner-left {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .print-banner-title {
-    font-size: 0.85rem;
-    font-weight: 800;
-    color: #0f172a;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-  }
-  .print-banner-client {
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: #0284c7;
-  }
-  .print-banner-meta {
-    display: flex;
-    gap: 12px;
-    font-size: 0.72rem;
-    color: #334155;
-    flex-wrap: wrap;
-  }
-
-  .print-day-bar {
-    background: #0f172a !important;
-    color: #ffffff !important;
-    padding: 4px 10px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .print-block-box {
-    border: 1px solid #94a3b8;
-    margin-bottom: 6px;
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-  .print-block-title {
-    background: #e2e8f0 !important;
-    color: #0f172a !important;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    padding: 3px 8px;
-    border-bottom: 1px solid #94a3b8;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  table.print-table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    table-layout: fixed !important;
-  }
-  table.print-table th,
-  table.print-table td {
-    border: 1px solid #cbd5e1 !important;
-    color: #0f172a !important;
-    padding: 3.5px 5px !important;
-    font-size: 0.72rem !important;
-    line-height: 1.2 !important;
-    overflow: hidden;
-    word-wrap: break-word;
-  }
-  table.print-table th {
-    background: #f8fafc !important;
-    color: #334155 !important;
-    font-size: 0.64rem !important;
-    font-weight: 700 !important;
-    text-transform: uppercase;
-    text-align: center;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  table.print-table th.p-col-ex,
-  table.print-table td.p-col-ex {
-    text-align: left !important;
-    width: 40% !important;
-  }
-  table.print-table .p-col-ord { width: 5% !important; text-align: center; }
-  table.print-table .p-col-ser { width: 6% !important; text-align: center; }
-  table.print-table .p-col-rep { width: 9% !important; text-align: center; }
-  table.print-table .p-col-int { width: 9% !important; text-align: center; }
-  table.print-table .p-col-pau { width: 7% !important; text-align: center; }
-  table.print-table .p-col-wk  { width: 6% !important; text-align: center; }
-
-  .print-day-page.density-compact table.print-table th,
-  .print-day-page.density-compact table.print-table td {
-    padding: 2.5px 4px !important;
-    font-size: 0.67rem !important;
-    line-height: 1.12 !important;
-  }
-  .print-day-page.density-compact .print-block-box {
-    margin-bottom: 4px !important;
-  }
-  .print-day-page.density-ultra table.print-table th,
-  .print-day-page.density-ultra table.print-table td {
-    padding: 1.5px 3px !important;
-    font-size: 0.62rem !important;
-    line-height: 1.05 !important;
-  }
-  .print-day-page.density-ultra .print-block-box {
-    margin-bottom: 3px !important;
-  }
-  .print-day-page.density-ultra .print-block-title {
-    padding: 2px 6px !important;
-    font-size: 0.66rem !important;
-  }
-}
-
 /* =========================================================================
    PANTALLA OSCURECIDA DE CARGA, LOGEO Y PORTAL DEL ALUMNO
    ========================================================================= */
@@ -916,4 +742,282 @@ table.plan-table td.week-cell {
   font-size: 0.74rem;
   line-height: 1;
   flex-shrink: 0;
+}
+
+/* =========================================================================
+   AJUSTE PROPORCIONAL PARA CELULARES (SIN SCROLL LATERAL)
+   ========================================================================= */
+.main-container,
+.top-grid,
+.card,
+.workout-block,
+.control-strip,
+.client-form {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 860px) {
+  .top-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .main-container {
+    padding: 0 8px;
+    margin: 8px auto;
+    width: 100%;
+  }
+
+  .main-container.drawer-open {
+    margin-right: 0;
+  }
+
+  .library-drawer {
+    width: 100vw;
+    right: -105vw;
+  }
+
+  .card {
+    padding: 10px;
+  }
+
+  /* Evita que Notas Internas fuerce 2 columnas anchas en la pantalla del celular */
+  .client-form {
+    grid-template-columns: 1fr !important;
+  }
+
+  .client-form .form-group {
+    grid-column: span 1 !important;
+  }
+
+  /* Evita que los selectores e inputs desborden el ancho del telefono */
+  select,
+  input,
+  textarea,
+  #client-select,
+  #preset-routine-select,
+  #day-focus-input,
+  #gsheet-url-input {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .client-bar,
+  .control-strip,
+  .strip-section {
+    width: 100%;
+  }
+
+  .strip-section select,
+  .client-bar select {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .top-navbar {
+    padding: 8px 10px;
+  }
+
+  .brand-title h1 {
+    font-size: 0.9rem;
+  }
+
+  .action-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .action-group .btn {
+    padding: 5px 8px;
+    font-size: 0.72rem;
+  }
+
+  .weekly-series-bar {
+    padding: 6px 10px;
+  }
+
+  .weekly-series-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+}
+
+/* =========================================================================
+   REGLAS DE IMPRESION: 1 DIA EXACTO POR HOJA + ENCABEZADO EN TODAS LAS HOJAS
+   ========================================================================= */
+@page {
+  size: A4 portrait;
+  margin: 7mm 9mm;
+}
+
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+  }
+  .no-print,
+  .fixed-header-wrapper,
+  .floating-controls,
+  .top-grid,
+  .library-drawer,
+  .control-strip,
+  .tabs-bar,
+  #planner-view,
+  #header-spacer {
+    display: none !important;
+  }
+  .main-container, .main-container.drawer-open {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  #print-all-days-container {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .print-day-page {
+    width: 100%;
+    page-break-after: always;
+    break-after: page;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    box-sizing: border-box;
+  }
+  .print-day-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .print-page-client-banner {
+    border: 1px solid #0f172a;
+    background: #f8fafc !important;
+    padding: 5px 10px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .print-banner-left {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .print-banner-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #0f172a;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .print-banner-client {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0284c7;
+  }
+  .print-banner-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 0.72rem;
+    color: #334155;
+    flex-wrap: wrap;
+  }
+
+  .print-day-bar {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-block-box {
+    border: 1px solid #94a3b8;
+    margin-bottom: 6px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .print-block-title {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-bottom: 1px solid #94a3b8;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  table.print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+  }
+  table.print-table th,
+  table.print-table td {
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    padding: 3.5px 5px !important;
+    font-size: 0.72rem !important;
+    line-height: 1.2 !important;
+    overflow: hidden;
+    word-wrap: break-word;
+  }
+  table.print-table th {
+    background: #f8fafc !important;
+    color: #334155 !important;
+    font-size: 0.64rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    text-align: center;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  table.print-table th.p-col-ex,
+  table.print-table td.p-col-ex {
+    text-align: left !important;
+    width: 40% !important;
+  }
+  table.print-table .p-col-ord { width: 5% !important; text-align: center; }
+  table.print-table .p-col-ser { width: 6% !important; text-align: center; }
+  table.print-table .p-col-rep { width: 9% !important; text-align: center; }
+  table.print-table .p-col-int { width: 9% !important; text-align: center; }
+  table.print-table .p-col-pau { width: 7% !important; text-align: center; }
+  table.print-table .p-col-wk  { width: 6% !important; text-align: center; }
+
+  .print-day-page.density-compact table.print-table th,
+  .print-day-page.density-compact table.print-table td {
+    padding: 2.5px 4px !important;
+    font-size: 0.67rem !important;
+    line-height: 1.12 !important;
+  }
+  .print-day-page.density-compact .print-block-box {
+    margin-bottom: 4px !important;
+  }
+  .print-day-page.density-ultra table.print-table th,
+  .print-day-page.density-ultra table.print-table td {
+    padding: 1.5px 3px !important;
+    font-size: 0.62rem !important;
+    line-height: 1.05 !important;
+  }
+  .print-day-page.density-ultra .print-block-box {
+    margin-bottom: 3px !important;
+  }
+  .print-day-page.density-ultra .print-block-title {
+    padding: 2px 6px !important;
+    font-size: 0.66rem !important;
+  }
 }
