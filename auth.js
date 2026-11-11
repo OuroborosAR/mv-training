@@ -119,6 +119,9 @@ async function loginAsCoach(pinOverride) {
     appState.exercises = data.exercises || [];
     appState.routines = data.routines || [];
     appState.clients = data.clients || [];
+    appState.presencialesGrupos = data.presencialesGrupos || [];
+    appState.presencialesRegistros = data.presencialesRegistros || [];
+
     if (appState.days.length === 0 && appState.routines.length > 0) {
       appState.days = JSON.parse(JSON.stringify(appState.routines[0].days));
     }
@@ -172,6 +175,8 @@ async function loginAsStudent(inputOverride) {
     appState.exercises = data.exercises || [];
     appState.routines = data.routines || [];
     appState.clients = [];
+    appState.presencialesGrupos = [];
+    appState.presencialesRegistros = [];
 
     if (studentEl) studentEl.value = "";
     currentSession = {
@@ -225,6 +230,8 @@ function logoutSession() {
   };
   appState.clients = [];
   appState.routines = [];
+  appState.presencialesGrupos = [];
+  appState.presencialesRegistros = [];
   saveToLocalStorage();
   const drawer = document.getElementById("library-drawer");
   if (drawer) drawer.classList.remove("open");
