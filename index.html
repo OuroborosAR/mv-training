@@ -8,7 +8,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Planificador de Entrenamiento</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
 
@@ -52,6 +53,52 @@
       </div>
 
       <div id="auth-error-msg" style="color:var(--series-red); font-size:0.78rem; margin-top:10px; min-height:18px;"></div>
+    </div>
+  </div>
+
+  <!-- MODAL PARA EXPORTAR / CLONAR RUTINA A OTRO CLIENTE -->
+  <div class="auth-overlay section-collapsed no-print" id="export-routine-modal" style="z-index:9500;">
+    <div class="auth-card" style="max-width:460px; text-align:left;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="font-size:0.95rem; color:var(--accent); text-transform:uppercase;">Exportar Rutina a Otro Cliente</h3>
+        <button class="btn" style="padding:3px 8px;" onclick="closeExportRoutineModal()">X</button>
+      </div>
+      <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">
+        Clona la rutina actual en pantalla para asignarla a otro alumno y personalizarla sin alterar la original.
+      </p>
+
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>1. Seleccionar Cliente Existente</label>
+        <select id="export-target-client-select" class="input-full" onchange="onExportClientSelectChange()">
+          <option value="">-- O escribir un cliente nuevo abajo --</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>Nombre del Cliente Destino</label>
+        <input type="text" id="export-target-client-name" class="input-full" placeholder="Nombre del alumno o grupo..." oninput="updateExportRoutineDefaultName()">
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Nombre para la Nueva Rutina</label>
+        <input type="text" id="export-target-routine-name" class="input-full" placeholder="Ej: Rutina - Nombre del Alumno">
+      </div>
+
+      <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:9px 11px; margin-bottom:14px; font-size:0.78rem;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:6px;">
+          <input type="checkbox" id="export-recalc-weights" checked>
+          <span>Adaptar pesos automáticamente a los niveles de fuerza de este cliente</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="export-save-cloud" checked>
+          <span>Guardar copia directamente en Google Sheets (Excel)</span>
+        </label>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn" onclick="closeExportRoutineModal()">Cancelar</button>
+        <button class="btn btn-success" onclick="confirmExportRoutineToClient()">Exportar y Abrir Rutina</button>
+      </div>
     </div>
   </div>
 
@@ -124,17 +171,17 @@
       <div class="top-grid no-print">
         <div class="card">
           <div class="card-title">
-            <span>Datos del Cliente</span>
+            <span>Datos del Cliente (Carga Automatica al Seleccionar)</span>
           </div>
           <div class="client-bar">
             <div style="display:flex; align-items:center; gap:6px; flex:1; flex-wrap:wrap;">
               <strong style="font-size:0.75rem; color:var(--text-muted);">Clientes en Excel:</strong>
-              <select id="client-select" style="flex:1; min-width:190px;" onchange="loadSelectedClient(); syncCoachPhoneField();">
+              <select id="client-select" style="flex:1; min-width:190px;" onchange="loadSelectedClient()">
                 <option value="">-- Seleccionar Cliente Guardado --</option>
               </select>
             </div>
             <div style="display:flex; gap:6px;">
-              <button class="btn btn-primary" onclick="saveCoachPhoneToMeta(); saveClientToCloud();">Guardar Cliente</button>
+              <button class="btn btn-primary" onclick="saveCoachPhoneToMeta(); saveStrengthFieldsToMeta(); saveClientToCloud();">Guardar Cliente</button>
               <button class="btn btn-danger" onclick="deleteSelectedClient()">Eliminar</button>
             </div>
           </div>
@@ -177,29 +224,70 @@
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-title">
-            <span>Referencia de Fase (Interno)</span>
-            <select id="nasm-phase-select" onchange="updateNASMAssistant()">
-              <option value="1">Fase 1: Estabilizacion</option>
-              <option value="2">Fase 2: Fuerza Resistencia</option>
-              <option value="3" selected>Fase 3: Hipertrofia</option>
-              <option value="4">Fase 4: Fuerza Maxima</option>
-              <option value="5">Fase 5: Potencia</option>
-            </select>
+        <!-- TARJETA DERECHA: FASE NASM + FUERZA BASE 2x2 COMPACTA -->
+        <div class="card" style="display:flex; flex-direction:column; justify-content:space-between; gap:10px;">
+          <div>
+            <div class="card-title" style="margin-bottom:6px;">
+              <span>Fase OPT (Autoajusta Series/Reps/Kg)</span>
+              <select id="nasm-phase-select" onchange="onPhaseSelectChange()">
+                <option value="1">Fase 1: Estabilizacion (60%)</option>
+                <option value="2">Fase 2: Fuerza Resistencia (75%)</option>
+                <option value="3" selected>Fase 3: Hipertrofia (80%)</option>
+                <option value="4">Fase 4: Fuerza Maxima (87.5%)</option>
+                <option value="5">Fase 5: Potencia (85% / Vel)</option>
+              </select>
+            </div>
+            <div class="nasm-assistant-box" id="nasm-assistant-content"></div>
           </div>
-          <div class="nasm-assistant-box" id="nasm-assistant-content"></div>
+
+          <div class="rm-base-box">
+            <div class="rm-header-row">
+              <span style="font-size:0.74rem; font-weight:700; color:var(--accent); text-transform:uppercase;">
+                Fuerza Base 1RM (Barra / Polea)
+              </span>
+              <select id="rm-preset-select" style="padding:3px 7px; font-size:0.73rem;" onchange="applyStrengthPreset(this.value)">
+                <option value="inicial_a">Estándar Inicial A (Suave)</option>
+                <option value="inicial_b" selected>Estándar Inicial B (General)</option>
+                <option value="intermedio">Nivel Intermedio</option>
+                <option value="avanzado">Nivel Avanzado</option>
+                <option value="custom">Personalizado</option>
+              </select>
+            </div>
+
+            <div class="rm-grid-2x2">
+              <div class="rm-param-item" title="Referencia Dominante de Rodilla (Adapta Prensa 200%, Front Squat 75%, Búlgara Manc. 32% c/u)">
+                <label for="rm-squat">Sentadilla (kg)</label>
+                <input type="number" id="rm-squat" value="45" oninput="onManualStrengthInput()">
+              </div>
+              <div class="rm-param-item" title="Referencia Dominante de Cadera (Adapta Hip Thrust 115%, RDL 75%, Swing KB 42%)">
+                <label for="rm-deadlift">P. Muerto (kg)</label>
+                <input type="number" id="rm-deadlift" value="55" oninput="onManualStrengthInput()">
+              </div>
+              <div class="rm-param-item" title="Referencia Empujes (Adapta Máquina 110%, Mancuernas 42% c/u, Militar 65%, Push Press 80%)">
+                <label for="rm-bench">P. Pecho (kg)</label>
+                <input type="number" id="rm-bench" value="35" oninput="onManualStrengthInput()">
+              </div>
+              <div class="rm-param-item" title="Referencia Tracciones (Adapta Polea/Barra 95-100%, Remo Mancuerna 45% c/u, Face Pull 25%)">
+                <label for="rm-pulldown">Dorsalera (kg)</label>
+                <input type="number" id="rm-pulldown" value="40" oninput="onManualStrengthInput()">
+              </div>
+            </div>
+
+            <button class="btn btn-primary" style="width:100%; font-size:0.75rem; padding:6px 10px;" onclick="applyBaseStrengthToRoutine(true)">
+              Calcular y Cargar Pesos según Elemento, Fase y 1RM
+            </button>
+          </div>
         </div>
       </div>
 
       <div class="control-strip no-print">
         <div class="strip-section">
           <strong style="font-size:0.76rem; color:var(--text-muted);">Rutinas Guardadas:</strong>
-          <select id="preset-routine-select" style="min-width:220px;">
-            <option value="">-- Seleccionar Rutina --</option>
+          <select id="preset-routine-select" style="min-width:230px;" onchange="loadPresetRoutine()">
+            <option value="">-- Seleccionar Rutina (Carga Directa) --</option>
           </select>
-          <button class="btn btn-primary" onclick="loadPresetRoutine()">Cargar Rutina</button>
           <button class="btn btn-success" onclick="saveRoutineToCloud()">Guardar Rutina en Excel</button>
+          <button class="btn btn-primary" onclick="openExportRoutineModal()" title="Clonar esta rutina para otro alumno">Exportar a Otro Cliente</button>
           <button class="btn btn-danger" onclick="deleteSelectedRoutine()">Eliminar</button>
         </div>
 
@@ -301,13 +389,13 @@
   </aside>
 
   <!-- MÓDULOS JAVASCRIPT -->
-  <script src="core.js"></script>
-  <script src="cloud.js"></script>
-  <script src="library.js"></script>
-  <script src="planner.js"></script>
-  <script src="ui-pwa.js"></script>
-  <script src="auth.js"></script>
-  <script src="generator.js"></script>
-  <script src="presenciales.js"></script>
+  <script src="core.js?v=10"></script>
+  <script src="cloud.js?v=10"></script>
+  <script src="library.js?v=10"></script>
+  <script src="planner.js?v=10"></script>
+  <script src="ui-pwa.js?v=10"></script>
+  <script src="auth.js?v=10"></script>
+  <script src="generator.js?v=10"></script>
+  <script src="presenciales.js?v=10"></script>
 </body>
 </html>

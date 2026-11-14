@@ -30,6 +30,136 @@ const MESES_LARGOS = [
 
 const PAGOS_STORAGE_KEY = "planificador_presenciales_pagos_v1";
 
+// ============================================================================
+// COLA SECUENCIAL PARA EVITAR COLISIONES Y PÉRDIDA DE DÍAS EN GOOGLE SHEETS
+// ============================================================================
+let presencialSyncQueue = [];
+let isProcessingPresencialQueue = false;
+
+function syncPresencialToSheet(payload) {
+  if (!appState.sheetUrl) return;
+  presencialSyncQueue.push(payload);
+  processPresencialSyncQueue();
+}
+
+async function processPresencialSyncQueue() {
+  if (isProcessingPresencialQueue) return;
+  isProcessingPresencialQueue = true;
+
+  let processedCount = 0;
+  let totalInBatch = presencialSyncQueue.length;
+
+  while (presencialSyncQueue.length > 0) {
+    const nextPayload = presencialSyncQueue.shift();
+    processedCount++;
+
+    const bodyPayload = Object.assign({}, nextPayload, {
+      pin: (typeof currentSession !== "undefined" && currentSession.coachPin) ? currentSession.coachPin : ""
+    });
+
+    try {
+      if (typeof setCloudStatus === "function") {
+        const progressText = totalInBatch > 1 ? ` (${processedCount}/${totalInBatch})` : "...";
+        setCloudStatus(`Guardando en Excel${progressText}`, "var(--accent)");
+      }
+      const res = await fetch(appState.sheetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(bodyPayload)
+      });
+      const data = await res.json();
+      if (data.status === "ok" && presencialSyncQueue.length === 0 && typeof setCloudStatus === "function") {
+        setCloudStatus("Guardado en Excel", "var(--series-green)");
+      }
+    } catch (err) {
+      if (typeof setCloudStatus === "function") {
+        setCloudStatus("Guardado local", "var(--series-yellow)");
+      }
+    }
+    totalInBatch = processedCount + presencialSyncQueue.length;
+  }
+
+  isProcessingPresencialQueue = false;
+}
+
+// ============================================================================
+// NORMALIZACIÓN DE FECHAS Y DEPURACIÓN AUTOMÁTICA DE DUPLICADOS
+// ============================================================================
+
+// Convierte cualquier fecha (incluso "2026-10-02T03:00:00.000Z" de Google Sheets) a "YYYY-MM-DD"
+function normalizarFechaISO(fechaRaw) {
+  if (!fechaRaw) return "";
+  const str = String(fechaRaw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (str.includes("T00:00:00")) return str.slice(0, 10);
+
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : str;
+}
+
+// Genera un ID único determinístico por grupo y fecha para impedir duplicados
+function construirIdRegistro(groupId, dateISO) {
+  const cleanDate = normalizarFechaISO(dateISO);
+  return `prec_${groupId}_${cleanDate}`;
+}
+
+// Limpia fechas con formato largo de Excel y fusiona cualquier día duplicado
+function normalizarYDepurarRegistros() {
+  if (!Array.isArray(appState.presencialesRegistros)) {
+    appState.presencialesRegistros = [];
+    return;
+  }
+
+  const mapaUnicos = new Map();
+  const idsDuplicadosParaBorrar = [];
+  let huboCambios = false;
+
+  appState.presencialesRegistros.forEach(reg => {
+    if (!reg || !reg.groupId) return;
+    const fechaLimpia = normalizarFechaISO(reg.date);
+    if (!fechaLimpia) return;
+
+    if (reg.date !== fechaLimpia) {
+      reg.date = fechaLimpia;
+      huboCambios = true;
+    }
+
+    const clave = `${reg.groupId}__${fechaLimpia}`;
+    if (!mapaUnicos.has(clave)) {
+      mapaUnicos.set(clave, reg);
+    } else {
+      huboCambios = true;
+      const existente = mapaUnicos.get(clave);
+
+      // Si el duplicado tenía una suspensión o nota personalizada, la preservamos
+      if (reg.status === "SUSPENDIDA" && existente.status !== "SUSPENDIDA") {
+        existente.status = "SUSPENDIDA";
+        existente.reason = reg.reason || existente.reason;
+        existente.amount = 0;
+      } else if (reg.reason && !existente.reason) {
+        existente.reason = reg.reason;
+        existente.amount = reg.amount;
+      }
+
+      if (reg.id && reg.id !== existente.id) {
+        idsDuplicadosParaBorrar.push(reg.id);
+      }
+    }
+  });
+
+  if (huboCambios) {
+    appState.presencialesRegistros = Array.from(mapaUnicos.values());
+    saveToLocalStorage();
+    idsDuplicadosParaBorrar.forEach(dupId => {
+      syncPresencialToSheet({ action: "deletePresencialRecord", id: dupId });
+    });
+  }
+}
+
 // Convierte "2026-10" en "Octubre"
 function obtenerNombreMes(yearMonth) {
   if (!yearMonth) return "";
@@ -41,8 +171,9 @@ function obtenerNombreMes(yearMonth) {
 
 // Convierte "2026-10-02" en "02/10"
 function formatearFechaSinAnio(fechaISO) {
-  const partes = String(fechaISO || "").trim().split("-");
-  return partes.length === 3 ? `${partes[2]}/${partes[1]}` : fechaISO;
+  const limpia = normalizarFechaISO(fechaISO);
+  const partes = String(limpia || "").trim().split("-");
+  return partes.length === 3 ? `${partes[2]}/${partes[1]}` : limpia;
 }
 
 // Obtiene el monto real contabilizado de un registro
@@ -228,8 +359,9 @@ function toggleGroupMonthPaid(groupId, yearMonth) {
 
 // Devuelve el nombre exacto del día ("Lunes", "Miércoles", etc.) a partir de "YYYY-MM-DD"
 function obtenerNombreDiaFecha(fechaISO) {
-  if (!fechaISO) return "";
-  const partes = String(fechaISO).trim().split("-");
+  const limpia = normalizarFechaISO(fechaISO);
+  if (!limpia) return "";
+  const partes = limpia.split("-");
   if (partes.length < 3) return "";
   const anio = parseInt(partes[0], 10);
   const mes = parseInt(partes[1], 10) - 1;
@@ -301,8 +433,8 @@ function switchCoachMainTab(tab) {
     }
   }
 
-  if (tab === "generator" && typeof renderGeneratorView === "function") {
-    renderGeneratorView();
+  if (tab === "generator" && typeof renderGeneratorUI === "function") {
+    renderGeneratorUI();
   } else if (tab === "presenciales") {
     renderPresencialesModule();
   } else if (tab === "editor" && typeof renderAll === "function") {
@@ -310,33 +442,12 @@ function switchCoachMainTab(tab) {
   }
 }
 
-async function syncPresencialToSheet(payload) {
-  if (!appState.sheetUrl) return;
-  const bodyPayload = Object.assign({}, payload, {
-    pin: (typeof currentSession !== "undefined" && currentSession.coachPin) ? currentSession.coachPin : ""
-  });
-
-  try {
-    if (typeof setCloudStatus === "function") setCloudStatus("Sincronizando...", "var(--accent)");
-    const res = await fetch(appState.sheetUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(bodyPayload)
-    });
-    const data = await res.json();
-    if (data.status === "ok" && typeof setCloudStatus === "function") {
-      setCloudStatus("Guardado en Excel", "var(--series-green)");
-    }
-  } catch (err) {
-    if (typeof setCloudStatus === "function") setCloudStatus("Guardado local", "var(--series-yellow)");
-  }
-}
-
 // Calcula las métricas financieras de un mes ("YYYY-MM") sumando el monto real de cada clase dada
 function calcularMetricasMes(yearMonth) {
+  normalizarYDepurarRegistros();
   const grupos = appState.presencialesGrupos || [];
   const registros = (appState.presencialesRegistros || []).filter(r =>
-    String(r.date || "").startsWith(yearMonth)
+    normalizarFechaISO(r.date).startsWith(yearMonth)
   );
 
   let totalGanado = 0;
@@ -349,7 +460,7 @@ function calcularMetricasMes(yearMonth) {
   const desgloseGrupos = grupos.map(g => {
     const regsGrupo = registros
       .filter(r => r.groupId === g.id)
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      .sort((a, b) => normalizarFechaISO(a.date).localeCompare(normalizarFechaISO(b.date)));
 
     const dadas = regsGrupo.filter(r => r.status === "DADA");
     const suspendidas = regsGrupo.filter(r => r.status === "SUSPENDIDA");
@@ -398,6 +509,7 @@ function calcularMetricasMes(yearMonth) {
 }
 
 function renderPresencialesModule() {
+  normalizarYDepurarRegistros();
   const container = getOrCreatePresencialesView();
   if (!container) return;
 
@@ -610,8 +722,8 @@ function renderAsistenciaView(container) {
   const valorMitad = Math.round(valorBase / 2);
 
   const registrosMes = (appState.presencialesRegistros || [])
-    .filter(r => r.groupId === currentGroup.id && String(r.date || "").startsWith(currentMonth))
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    .filter(r => r.groupId === currentGroup.id && normalizarFechaISO(r.date).startsWith(currentMonth))
+    .sort((a, b) => normalizarFechaISO(a.date).localeCompare(normalizarFechaISO(b.date)));
 
   container.innerHTML = `
     <div class="card" style="margin-bottom:15px;">
@@ -629,6 +741,7 @@ function renderAsistenciaView(container) {
         <button class="btn btn-primary" onclick="generarFechasMesAutomaticas('${currentGroup.id}', '${currentMonth}')">+ Generar Fechas del Mes</button>
         <button class="btn" onclick="generarFechasAnioAutomaticas('${currentGroup.id}', '${currentMonth.slice(0, 4)}')">+ Generar Todo el Año (${currentMonth.slice(0, 4)})</button>
         <button class="btn btn-success" onclick="agregarClaseExtraIndividual('${currentGroup.id}', '${currentMonth}')">+ Sumar Fecha / Cambio Puntual</button>
+        <button class="btn btn-danger" onclick="limpiarFechasMesGrupo('${currentGroup.id}', '${currentMonth}')">Vaciar Mes</button>
       </div>
 
       <div class="table-responsive">
@@ -684,19 +797,24 @@ function renderAsistenciaView(container) {
 }
 
 function detectarDiasSemana(texto) {
-  const textLower = String(texto || "").toLowerCase();
+  const textLower = String(texto || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
   const targetDays = [];
-  if (textLower.includes("lunes") || textLower.includes("lun")) targetDays.push(1);
-  if (textLower.includes("martes") || textLower.includes("mar")) targetDays.push(2);
-  if (textLower.includes("miercoles") || textLower.includes("miércoles") || textLower.includes("mie") || textLower.includes("mié")) targetDays.push(3);
-  if (textLower.includes("jueves") || textLower.includes("jue")) targetDays.push(4);
-  if (textLower.includes("viernes") || textLower.includes("vie")) targetDays.push(5);
-  if (textLower.includes("sabado") || textLower.includes("sábado") || textLower.includes("sab") || textLower.includes("sáb")) targetDays.push(6);
-  if (textLower.includes("domingo") || textLower.includes("dom")) targetDays.push(0);
+  if (/\b(lunes|lun)\b/.test(textLower)) targetDays.push(1);
+  if (/\b(martes|mar)\b/.test(textLower)) targetDays.push(2);
+  if (/\b(miercoles|mie)\b/.test(textLower)) targetDays.push(3);
+  if (/\b(jueves|jue)\b/.test(textLower)) targetDays.push(4);
+  if (/\b(viernes|vie)\b/.test(textLower)) targetDays.push(5);
+  if (/\b(sabado|sab)\b/.test(textLower)) targetDays.push(6);
+  if (/\b(domingo|dom)\b/.test(textLower)) targetDays.push(0);
   return targetDays;
 }
 
 function generarFechasMesAutomaticas(groupId, yearMonth, silent = false) {
+  normalizarYDepurarRegistros();
   const group = (appState.presencialesGrupos || []).find(g => g.id === groupId);
   if (!group) return;
 
@@ -712,13 +830,17 @@ function generarFechasMesAutomaticas(groupId, yearMonth, silent = false) {
   const date = new Date(year, month, 1);
   const addedRecords = [];
 
+  if (!appState.presencialesRegistros) appState.presencialesRegistros = [];
+
   while (date.getMonth() === month) {
     if (targetDays.includes(date.getDay())) {
       const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-      const existe = (appState.presencialesRegistros || []).some(r => r.groupId === group.id && r.date === dateString);
+      const existe = appState.presencialesRegistros.some(
+        r => r.groupId === group.id && normalizarFechaISO(r.date) === dateString
+      );
       if (!existe) {
-        addedRecords.push({
-          id: "prec_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+        const rec = {
+          id: construirIdRegistro(group.id, dateString),
           groupId: group.id,
           groupName: group.name,
           date: dateString,
@@ -728,42 +850,75 @@ function generarFechasMesAutomaticas(groupId, yearMonth, silent = false) {
           attendance: group.members || "Presente",
           amount: Number(group.price) || 25000,
           updatedAt: new Date().toLocaleDateString()
-        });
+        };
+        appState.presencialesRegistros.push(rec);
+        addedRecords.push(rec);
       }
     }
     date.setDate(date.getDate() + 1);
   }
 
   if (addedRecords.length === 0) {
-    if (!silent) alert("Ya estaban generadas las fechas de este mes.");
+    if (!silent) alert("Ya estaban generadas todas las fechas de este mes para este grupo.");
     return;
   }
 
-  if (!appState.presencialesRegistros) appState.presencialesRegistros = [];
-  appState.presencialesRegistros.push(...addedRecords);
   saveToLocalStorage();
   addedRecords.forEach(rec => syncPresencialToSheet({ action: "savePresencialRecord", record: rec }));
   if (!silent) renderPresencialesModule();
 }
 
 function generarFechasAnioAutomaticas(groupId, yearStr) {
+  if (!confirm(`¿Generar automáticamente todas las fechas del año ${yearStr} para este grupo?`)) return;
   for (let m = 1; m <= 12; m++) {
     generarFechasMesAutomaticas(groupId, `${yearStr}-${String(m).padStart(2, "0")}`, true);
   }
   renderPresencialesModule();
-  alert(`Se generaron todas las fechas del año ${yearStr}.`);
+}
+
+function limpiarFechasMesGrupo(groupId, yearMonth) {
+  const nombreMes = obtenerNombreMes(yearMonth);
+  if (!confirm(`¿Eliminar todas las fechas cargadas de este grupo en ${nombreMes} (${yearMonth})?`)) return;
+
+  const aBorrar = (appState.presencialesRegistros || []).filter(
+    r => r.groupId === groupId && normalizarFechaISO(r.date).startsWith(yearMonth)
+  );
+
+  appState.presencialesRegistros = (appState.presencialesRegistros || []).filter(
+    r => !(r.groupId === groupId && normalizarFechaISO(r.date).startsWith(yearMonth))
+  );
+
+  saveToLocalStorage();
+  aBorrar.forEach(r => syncPresencialToSheet({ action: "deletePresencialRecord", id: r.id }));
+  renderPresencialesModule();
 }
 
 function agregarClaseExtraIndividual(groupId, yearMonth) {
+  normalizarYDepurarRegistros();
   const group = (appState.presencialesGrupos || []).find(g => g.id === groupId);
   if (!group) return;
 
   const fechaStr = prompt("Ingresa la fecha de la clase (YYYY-MM-DD):", yearMonth + "-01");
   if (!fechaStr) return;
 
-  const cleanDate = fechaStr.trim();
+  const cleanDate = normalizarFechaISO(fechaStr);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+    alert("Formato de fecha inválido. Usa YYYY-MM-DD (ej: 2026-10-15).");
+    return;
+  }
+
+  if (!appState.presencialesRegistros) appState.presencialesRegistros = [];
+  const yaExiste = appState.presencialesRegistros.find(
+    r => r.groupId === group.id && normalizarFechaISO(r.date) === cleanDate
+  );
+
+  if (yaExiste) {
+    alert("Esa fecha ya está registrada en la lista de este grupo.");
+    return;
+  }
+
   const newRec = {
-    id: "prec_" + Date.now(),
+    id: construirIdRegistro(group.id, cleanDate),
     groupId: group.id,
     groupName: group.name,
     date: cleanDate,
@@ -775,7 +930,6 @@ function agregarClaseExtraIndividual(groupId, yearMonth) {
     updatedAt: new Date().toLocaleDateString()
   };
 
-  if (!appState.presencialesRegistros) appState.presencialesRegistros = [];
   appState.presencialesRegistros.push(newRec);
   saveToLocalStorage();
   syncPresencialToSheet({ action: "savePresencialRecord", record: newRec });
@@ -813,6 +967,7 @@ function handleEstadoClaseChange(recordId, selectedOption) {
     if (rec.reason === "1 persona") rec.reason = "";
   }
 
+  rec.date = normalizarFechaISO(rec.date);
   rec.time = obtenerDiaLimpioRegistro(rec, group ? group.scheduleText : "");
   rec.updatedAt = new Date().toLocaleDateString();
   saveToLocalStorage();
@@ -823,6 +978,7 @@ function handleEstadoClaseChange(recordId, selectedOption) {
 function updateRecordAmount(recordId, val) {
   const rec = (appState.presencialesRegistros || []).find(r => r.id === recordId);
   if (!rec) return;
+  rec.date = normalizarFechaISO(rec.date);
   rec.amount = Math.max(0, parseFloat(val) || 0);
   rec.updatedAt = new Date().toLocaleDateString();
   saveToLocalStorage();
@@ -833,6 +989,7 @@ function updateRecordAmount(recordId, val) {
 function updateRecordField(recordId, field, val) {
   const rec = (appState.presencialesRegistros || []).find(r => r.id === recordId);
   if (!rec) return;
+  rec.date = normalizarFechaISO(rec.date);
   rec[field] = val;
   rec.updatedAt = new Date().toLocaleDateString();
   saveToLocalStorage();
@@ -840,9 +997,21 @@ function updateRecordField(recordId, field, val) {
 }
 
 function deletePresencialRecord(id) {
-  appState.presencialesRegistros = (appState.presencialesRegistros || []).filter(r => r.id !== id);
+  const target = (appState.presencialesRegistros || []).find(r => r.id === id);
+  const targetDate = target ? normalizarFechaISO(target.date) : "";
+  const targetGroup = target ? target.groupId : "";
+
+  // Borra el registro y cualquier duplicado residual de esa misma fecha y grupo
+  const toDelete = (appState.presencialesRegistros || []).filter(
+    r => r.id === id || (targetDate && r.groupId === targetGroup && normalizarFechaISO(r.date) === targetDate)
+  );
+
+  appState.presencialesRegistros = (appState.presencialesRegistros || []).filter(
+    r => !toDelete.some(d => d.id === r.id)
+  );
+
   saveToLocalStorage();
-  syncPresencialToSheet({ action: "deletePresencialRecord", id: id });
+  toDelete.forEach(d => syncPresencialToSheet({ action: "deletePresencialRecord", id: d.id }));
   renderPresencialesModule();
 }
 
@@ -1098,12 +1267,13 @@ function renderFinanzasView(container) {
 // MENSAJE DE WHATSAPP LIMPIO (SOPORTA TARIFA FIJA Y TARIFA VARIABLE 20K/40K)
 // ============================================================================
 function enviarResumenWhatsApp(groupId, yearMonth) {
+  normalizarYDepurarRegistros();
   const group = (appState.presencialesGrupos || []).find(g => g.id === groupId);
   if (!group) return;
 
   const registros = (appState.presencialesRegistros || [])
-    .filter(r => r.groupId === group.id && String(r.date || "").startsWith(yearMonth))
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    .filter(r => r.groupId === group.id && normalizarFechaISO(r.date).startsWith(yearMonth))
+    .sort((a, b) => normalizarFechaISO(a.date).localeCompare(normalizarFechaISO(b.date)));
 
   const dadas = registros.filter(r => r.status === "DADA");
   const suspendidas = registros.filter(r => r.status === "SUSPENDIDA");
@@ -1111,7 +1281,6 @@ function enviarResumenWhatsApp(groupId, yearMonth) {
   const subtotal = dadas.reduce((acc, r) => acc + obtenerMontoRegistro(r, valorUnitario), 0);
   const nombreMes = obtenerNombreMes(yearMonth);
 
-  // Detecta si en el mes hubo días con valor diferente (ej. $20.000 cuando fue 1 persona y $40.000 cuando fueron los 2)
   const tieneMontosVariables = dadas.some(d => obtenerMontoRegistro(d, valorUnitario) !== valorUnitario);
 
   let mensaje = `Paso las clases del mes de ${nombreMes}:\n\n`;

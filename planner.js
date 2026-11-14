@@ -2,6 +2,35 @@
 // PLANNER.JS: GRILLA DE ENTRENAMIENTO, SERIES SEMANALES, PROGRESION Y PDF
 // =========================================================================
 
+// Asigna automáticamente los pesos de Sem 1 a 4 para una fila individual según 1RM, Elemento y Fase
+function populateRowSuggestedWeights(row, bKey) {
+  if (!row || !row.name || (bKey !== "str" && bKey !== "core")) return;
+  if (typeof estimateExercise1RM !== "function" || typeof roundToGymStep !== "function") return;
+
+  const est1RM = estimateExercise1RM(row);
+  const phaseKey = appState.meta.nasmPhase || "3";
+  const phaseObj = NASM_PHASES[phaseKey] || NASM_PHASES["3"];
+  const step = parseFloat(document.getElementById("rounding-select")?.value) || 1;
+  const progRate = 0.025;
+
+  if (est1RM && est1RM > 0) {
+    let targetIntensity = (bKey === "core") ? 0.65 : phaseObj.pct;
+    if (phaseKey === "5" && /velocidad|speed|salto|jump|explosiv|balístic/i.test(row.name)) {
+      targetIntensity = 0.40;
+    }
+    const w1Val = Math.max(step, roundToGymStep(est1RM * targetIntensity, step));
+    row.w1 = String(w1Val);
+    row.w2 = String(roundToGymStep(w1Val * (1 + progRate), step));
+    row.w3 = String(roundToGymStep(w1Val * (1 + progRate * 2), step));
+    row.w4 = String(roundToGymStep(w1Val * (1 + progRate * 3), step));
+  } else {
+    row.w1 = "";
+    row.w2 = "";
+    row.w3 = "";
+    row.w4 = "";
+  }
+}
+
 function renderWeeklySeries() {
   const c = { RODILLA: 0, CADERA: 0, EMPUJE_H: 0, EMPUJE_V: 0, TRACCION_H: 0, TRACCION_V: 0, TRANSPORTE: 0, CORE: 0 };
   appState.days.forEach(d => {
@@ -58,7 +87,9 @@ function removeDay(idx) {
   if (!confirm("¿Eliminar este dia?")) return;
   appState.days.splice(idx, 1);
   appState.days.forEach((d, i) => d.title = `Dia ${i + 1}`);
-  appState.activeDayIndex = Math.max(0, appState.activeDayIndex - 1);
+  if (appState.activeDayIndex >= appState.days.length) {
+    appState.activeDayIndex = Math.max(0, appState.days.length - 1);
+  }
   renderAll();
 }
 
@@ -105,8 +136,8 @@ function renderBlocks() {
               <td><input class="input-sm" value="${escapeHtml(r.order)}" oninput="updateCell('${b.key}',${rIdx},'order',this.value)"></td>
               <td class="col-ex">
                 <div style="display:flex;gap:4px;align-items:center;">
-                  <input class="input-exercise-name" value="${escapeHtml(r.name)}" placeholder="Escribir o editar ejercicio..." oninput="updateCell('${b.key}',${rIdx},'name',this.value)">
-                  <button class="btn btn-icon-action no-print" title="Rotar por otro ejercicio del mismo patrón" onclick="rotateRowExercise('${b.key}',${rIdx})">Rotar</button>
+                  <input class="input-exercise-name" value="${escapeHtml(r.name)}" placeholder="Escribir o editar ejercicio..." oninput="updateCell('${b.key}',${rIdx},'name',this.value)" onchange="onRowExerciseNameCommitted('${b.key}',${rIdx})">
+                  <button class="btn btn-icon-action no-print" title="Rotar por otro ejercicio del mismo patrón y calcular peso" onclick="rotateRowExercise('${b.key}',${rIdx})">Rotar</button>
                   <button class="btn btn-icon-action no-print" title="Guardar este nombre en la Biblioteca" onclick="quickSaveRowExercise('${b.key}',${rIdx})">+</button>
                 </div>
               </td>
@@ -131,14 +162,32 @@ function renderBlocks() {
 function updateCell(bKey, rIdx, field, val) {
   const row = appState.days[appState.activeDayIndex].blocks[bKey][rIdx];
   row[field] = field === "sets" ? (parseInt(val) || 0) : val;
-  if (field === "sets" || field === "pattern") renderWeeklySeries();
+
+  if (field === "pattern" && row.name) {
+    populateRowSuggestedWeights(row, bKey);
+    renderBlocks();
+  }
+  if (field === "sets" || field === "pattern") {
+    renderWeeklySeries();
+  }
   saveToLocalStorage();
+}
+
+// Si el entrenador escribe manualmente un ejercicio y aún no tenía peso cargado, sugiere los kg al salir del campo
+function onRowExerciseNameCommitted(bKey, rIdx) {
+  const row = appState.days[appState.activeDayIndex]?.blocks[bKey]?.[rIdx];
+  if (!row || !row.name.trim()) return;
+  if (!row.w1) {
+    populateRowSuggestedWeights(row, bKey);
+    saveToLocalStorage();
+    renderBlocks();
+  }
 }
 
 function addRow(bKey, pat, name = "") {
   const def = NASM_PHASES[appState.meta.nasmPhase || "3"].def;
   const list = appState.days[appState.activeDayIndex].blocks[bKey];
-  list.push({
+  const newRow = {
     order: bKey === "str" ? `B${list.length + 1}` : `${list.length + 1}`,
     name,
     pattern: pat,
@@ -147,7 +196,14 @@ function addRow(bKey, pat, name = "") {
     rpe: def.rpe,
     rest: def.rest,
     w1: "", w2: "", w3: "", w4: ""
-  });
+  };
+
+  // Si se agrega desde la Biblioteca (viene con nombre), calcula automáticamente los pesos de Sem 1 a 4
+  if (name) {
+    populateRowSuggestedWeights(newRow, bKey);
+  }
+
+  list.push(newRow);
   renderAll();
 }
 
@@ -162,9 +218,9 @@ function applyProgression(pct) {
   appState.days.forEach(d => Object.values(d.blocks).forEach(list => list.forEach(r => {
     const base = parseFloat(String(r.w1).replace(",", "."));
     if (!isNaN(base) && base > 0) {
-      r.w2 = String(Math.round((base * (1 + rate)) / step) * step);
-      r.w3 = String(Math.round((base * (1 + rate * 2)) / step) * step);
-      r.w4 = String(Math.round((base * (1 + rate * 3)) / step) * step);
+      r.w2 = String(Number((Math.round((base * (1 + rate)) / step) * step).toFixed(2)));
+      r.w3 = String(Number((Math.round((base * (1 + rate * 2)) / step) * step).toFixed(2)));
+      r.w4 = String(Number((Math.round((base * (1 + rate * 3)) / step) * step).toFixed(2)));
     }
   })));
   renderAll();

@@ -1,5 +1,5 @@
 // =========================================================================
-// GENERATOR.JS: MOTOR DE GENERACION AUTOMATICA Y ROTACION POR PATRONES
+// GENERATOR.JS: MOTOR INTELIGENTE POR BLOQUES, JERARQUIA Y CARGA AUTOMATICA
 // =========================================================================
 
 let genConfig = {
@@ -29,7 +29,7 @@ const TRAINING_METHODS = {
     desc: "Mantiene el peso y las repeticiones constantes en todas las series de trabajo. Ideal para estabilizar la tecnica y acumular tension mecanica.",
     format: (sets, phase) => {
       const p = {
-        "1": { reps: "12-15", rpe: "65% (4/2/1)", rest: "60s" },
+        "1": { reps: "12-15", rpe: "60% (4/2/1)", rest: "60s" },
         "2": { reps: "10-12", rpe: "75% (2/0/2)", rest: "60s" },
         "3": { reps: "8-10",  rpe: "80% (Estable)", rest: "90s" },
         "4": { reps: "4-5",   rpe: "87.5% (Pesado)", rest: "3m" },
@@ -97,7 +97,7 @@ const TRAINING_METHODS = {
     desc: "Agrupa patrones opuestos en biseries (B1/B2, C1/C2) optimizando la densidad de la clase y la accion cardiaca periferica.",
     format: (sets, phase) => {
       const reps = phase === "1" ? "12-15" : (phase === "4" ? "5" : "8-10");
-      const rpe  = phase === "1" ? "65%" : (phase === "4" ? "85%" : "77.5%");
+      const rpe  = phase === "1" ? "60%" : (phase === "4" ? "87.5%" : "77.5%");
       return { sets, reps, rpe, rest: "60s" };
     }
   }
@@ -106,36 +106,150 @@ const TRAINING_METHODS = {
 const SPLIT_BLUEPRINTS = {
   2: {
     splitLabel: "Full Body 2 Dias",
+    isFullBody: true,
     days: [
-      { focus: "Full Body A: Rodilla + Cadera + Empuje H + Traccion H", patterns: ["RODILLA", "CADERA", "EMPUJE_H", "TRACCION_H"] },
-      { focus: "Full Body B: Cadera + Rodilla + Empuje V + Traccion V", patterns: ["CADERA", "RODILLA", "EMPUJE_V", "TRACCION_V"] }
+      {
+        focus: "Full Body A: Base Rodilla Bilateral + Empuje H Base + Bisagra Unilateral/Integrada + Traccion H",
+        slots: [
+          { pattern: "RODILLA",    preferredTiers: ["BASE", "INTEGRADO"] },
+          { pattern: "EMPUJE_H",   preferredTiers: ["BASE", "INTEGRADO"] },
+          { pattern: "CADERA",     preferredTiers: ["INTEGRADO", "UNILATERAL", "BASE"] },
+          { pattern: "TRACCION_H", preferredTiers: ["BASE", "UNILATERAL", "INTEGRADO"] }
+        ]
+      },
+      {
+        focus: "Full Body B: Base Cadera Bilateral + Empuje V Base + Rodilla Unilateral/Integrada + Traccion V",
+        slots: [
+          { pattern: "CADERA",     preferredTiers: ["BASE", "INTEGRADO"] },
+          { pattern: "EMPUJE_V",   preferredTiers: ["BASE", "INTEGRADO"] },
+          { pattern: "RODILLA",    preferredTiers: ["INTEGRADO", "UNILATERAL", "BASE"] },
+          { pattern: "TRACCION_V", preferredTiers: ["BASE", "UNILATERAL"] }
+        ]
+      }
     ]
   },
   3: {
     splitLabel: "Full Body 3 Dias",
+    isFullBody: true,
     days: [
-      { focus: "Full Body A: Enfasis Rodilla + Empuje H + Traccion H", patterns: ["RODILLA", "CADERA", "EMPUJE_H", "TRACCION_H"] },
-      { focus: "Full Body B: Enfasis Cadera + Empuje V + Traccion V", patterns: ["CADERA", "RODILLA", "EMPUJE_V", "TRACCION_V"] },
-      { focus: "Full Body C: Unilateral / Simetrico + Cadenas Cruzadas", patterns: ["RODILLA", "CADERA", "EMPUJE_H", "TRACCION_V"] }
+      {
+        focus: "Full Body A: Sentadilla Base + Press Horizontal Base + Bisagra Unilateral + Traccion H",
+        slots: [
+          { pattern: "RODILLA",    preferredTiers: ["BASE", "INTEGRADO"] },
+          { pattern: "EMPUJE_H",   preferredTiers: ["BASE", "INTEGRADO"] },
+          { pattern: "CADERA",     preferredTiers: ["UNILATERAL", "INTEGRADO", "BASE"] },
+          { pattern: "TRACCION_H", preferredTiers: ["BASE", "UNILATERAL"] }
+        ]
+      },
+      {
+        focus: "Full Body B: Peso Muerto / Bisagra Base + Empuje Vertical Base + Rodilla Unilateral + Traccion V",
+        slots: [
+          { pattern: "CADERA",     preferredTiers: ["BASE", "INTEGRADO"] },
+          { pattern: "EMPUJE_V",   preferredTiers: ["BASE", "INTEGRADO"] },
+          { pattern: "RODILLA",    preferredTiers: ["UNILATERAL", "INTEGRADO", "BASE"] },
+          { pattern: "TRACCION_V", preferredTiers: ["BASE", "UNILATERAL"] }
+        ]
+      },
+      {
+        focus: "Full Body C: Poliarticular Integrado (Total Body) + Empuje / Traccion + Cadena Posterior",
+        slots: [
+          { pattern: "RODILLA",    preferredTiers: ["INTEGRADO", "BASE", "UNILATERAL"] },
+          { pattern: "CADERA",     preferredTiers: ["INTEGRADO", "BASE", "UNILATERAL"] },
+          { pattern: "EMPUJE_H",   preferredTiers: ["UNILATERAL", "BASE", "INTEGRADO"] },
+          { pattern: "TRACCION_H", preferredTiers: ["UNILATERAL", "INTEGRADO", "BASE"] }
+        ]
+      }
     ]
   },
   4: {
     splitLabel: "Split por Patrones 4 Dias",
+    isFullBody: false,
     days: [
-      { focus: "Dia 1 — Torso A: Empuje Horizontal + Traccion Horizontal + Vertical", patterns: ["EMPUJE_H", "TRACCION_H", "EMPUJE_V", "TRACCION_V"] },
-      { focus: "Dia 2 — Pierna A: Enfasis Dominante de Rodilla + Bisagra", patterns: ["RODILLA", "CADERA", "RODILLA"] },
-      { focus: "Dia 3 — Torso B: Empuje Vertical + Traccion Vertical + Horizontal", patterns: ["EMPUJE_V", "TRACCION_V", "EMPUJE_H", "TRACCION_H"] },
-      { focus: "Dia 4 — Pierna B: Enfasis Dominante de Cadera + Rodilla Unilateral", patterns: ["CADERA", "RODILLA", "CADERA"] }
+      {
+        focus: "Dia 1 — Torso A: Press Horizontal Base + Remo Base + Empuje V Unilateral + Traccion V",
+        slots: [
+          { pattern: "EMPUJE_H",   preferredTiers: ["BASE"] },
+          { pattern: "TRACCION_H", preferredTiers: ["BASE"] },
+          { pattern: "EMPUJE_V",   preferredTiers: ["UNILATERAL", "BASE", "ANALITICO"] },
+          { pattern: "TRACCION_V", preferredTiers: ["BASE", "ANALITICO"] }
+        ]
+      },
+      {
+        focus: "Dia 2 — Pierna A (Dominante Rodilla): Sentadilla Base + Bisagra Base + Rodilla Unilateral + Analitico",
+        slots: [
+          { pattern: "RODILLA",    preferredTiers: ["BASE"] },
+          { pattern: "CADERA",     preferredTiers: ["BASE", "UNILATERAL"] },
+          { pattern: "RODILLA",    preferredTiers: ["UNILATERAL", "INTEGRADO"] },
+          { pattern: "CADERA",     preferredTiers: ["ANALITICO", "UNILATERAL"] }
+        ]
+      },
+      {
+        focus: "Dia 3 — Torso B: Press Vertical Base + Dominadas/Jalon Base + Empuje H Unilateral + Traccion Escapular",
+        slots: [
+          { pattern: "EMPUJE_V",   preferredTiers: ["BASE"] },
+          { pattern: "TRACCION_V", preferredTiers: ["BASE"] },
+          { pattern: "EMPUJE_H",   preferredTiers: ["UNILATERAL", "BASE"] },
+          { pattern: "TRACCION_H", preferredTiers: ["ANALITICO", "UNILATERAL"] }
+        ]
+      },
+      {
+        focus: "Dia 4 — Pierna B (Dominante Cadera): Peso Muerto Base + Rodilla Unilateral + Bisagra Unilateral + Analitico",
+        slots: [
+          { pattern: "CADERA",     preferredTiers: ["BASE"] },
+          { pattern: "RODILLA",    preferredTiers: ["UNILATERAL", "BASE"] },
+          { pattern: "CADERA",     preferredTiers: ["UNILATERAL", "INTEGRADO"] },
+          { pattern: "RODILLA",    preferredTiers: ["ANALITICO", "UNILATERAL"] }
+        ]
+      }
     ]
   },
   5: {
     splitLabel: "Split por Patrones 5 Dias",
+    isFullBody: false,
     days: [
-      { focus: "Dia 1 — Empuje Horizontal + Traccion Horizontal", patterns: ["EMPUJE_H", "TRACCION_H", "EMPUJE_V"] },
-      { focus: "Dia 2 — Dominante de Rodilla + Bisagra Complementaria", patterns: ["RODILLA", "CADERA", "RODILLA"] },
-      { focus: "Dia 3 — Empuje Vertical + Traccion Vertical", patterns: ["EMPUJE_V", "TRACCION_V", "TRACCION_H"] },
-      { focus: "Dia 4 — Dominante de Cadera + Rodilla Unilateral", patterns: ["CADERA", "RODILLA", "CADERA"] },
-      { focus: "Dia 5 — Full Body Integrado / Patrones Complementarios", patterns: ["RODILLA", "CADERA", "EMPUJE_H", "TRACCION_V"] }
+      {
+        focus: "Dia 1 — Empuje Horizontal Base + Traccion Horizontal Base + Accesorios",
+        slots: [
+          { pattern: "EMPUJE_H",   preferredTiers: ["BASE"] },
+          { pattern: "TRACCION_H", preferredTiers: ["BASE"] },
+          { pattern: "EMPUJE_H",   preferredTiers: ["UNILATERAL", "ANALITICO"] },
+          { pattern: "TRACCION_H", preferredTiers: ["UNILATERAL", "ANALITICO"] }
+        ]
+      },
+      {
+        focus: "Dia 2 — Dominante de Rodilla Base + Bisagra Complementaria + Rodilla Unilateral",
+        slots: [
+          { pattern: "RODILLA",    preferredTiers: ["BASE"] },
+          { pattern: "CADERA",     preferredTiers: ["BASE", "UNILATERAL"] },
+          { pattern: "RODILLA",    preferredTiers: ["UNILATERAL", "INTEGRADO"] }
+        ]
+      },
+      {
+        focus: "Dia 3 — Empuje Vertical Base + Traccion Vertical Base + Hombro/Escapular",
+        slots: [
+          { pattern: "EMPUJE_V",   preferredTiers: ["BASE"] },
+          { pattern: "TRACCION_V", preferredTiers: ["BASE"] },
+          { pattern: "TRACCION_H", preferredTiers: ["UNILATERAL", "ANALITICO"] },
+          { pattern: "TRACCION_V", preferredTiers: ["ANALITICO", "BASE"] }
+        ]
+      },
+      {
+        focus: "Dia 4 — Dominante de Cadera Base (Big 3) + Rodilla Unilateral + Cadena Posterior Analitica",
+        slots: [
+          { pattern: "CADERA",     preferredTiers: ["BASE"] },
+          { pattern: "RODILLA",    preferredTiers: ["UNILATERAL", "BASE"] },
+          { pattern: "CADERA",     preferredTiers: ["UNILATERAL", "ANALITICO"] }
+        ]
+      },
+      {
+        focus: "Dia 5 — Full Body Integrado (Total Body / Potencia / Cadenas Cruzadas)",
+        slots: [
+          { pattern: "RODILLA",    preferredTiers: ["INTEGRADO", "BASE"] },
+          { pattern: "CADERA",     preferredTiers: ["INTEGRADO", "BASE"] },
+          { pattern: "EMPUJE_V",   preferredTiers: ["INTEGRADO", "UNILATERAL"] },
+          { pattern: "TRACCION_H", preferredTiers: ["INTEGRADO", "UNILATERAL"] }
+        ]
+      }
     ]
   }
 };
@@ -143,29 +257,6 @@ const SPLIT_BLUEPRINTS = {
 window.addEventListener("DOMContentLoaded", () => {
   renderGeneratorUI();
 });
-
-function switchCoachMainTab(tab) {
-  const btnEditor = document.getElementById("btn-mode-editor");
-  const btnGen = document.getElementById("btn-mode-generator");
-  const genView = document.getElementById("coach-generator-view");
-  const editorView = document.getElementById("coach-editor-view");
-
-  if (!btnEditor || !btnGen || !genView || !editorView) return;
-
-  if (tab === "generator") {
-    btnGen.classList.add("active");
-    btnEditor.classList.remove("active");
-    genView.classList.remove("section-collapsed");
-    editorView.classList.add("section-collapsed");
-    renderGeneratorUI();
-  } else {
-    btnEditor.classList.add("active");
-    btnGen.classList.remove("active");
-    genView.classList.add("section-collapsed");
-    editorView.classList.remove("section-collapsed");
-    renderAll();
-  }
-}
 
 function getLibraryPool() {
   if (appState.exercises && appState.exercises.length > 0) return appState.exercises;
@@ -234,8 +325,8 @@ function calculateTargetSeriesPerPattern(daysCount, level) {
   let lowerSlots = 0;
   let upperSlots = 0;
   blueprint.days.forEach(d => {
-    d.patterns.forEach(p => {
-      if (p === "RODILLA" || p === "CADERA") lowerSlots++;
+    d.slots.forEach(s => {
+      if (s.pattern === "RODILLA" || s.pattern === "CADERA") lowerSlots++;
       else upperSlots++;
     });
   });
@@ -250,8 +341,8 @@ function calculateTargetSeriesPerPattern(daysCount, level) {
   };
 
   return {
-    lowerSeriesQueue: distribute(targetWeeklyMacro, lowerSlots),
-    upperSeriesQueue: distribute(targetWeeklyMacro, upperSlots)
+    lowerSeriesQueue: distribute(targetWeeklyMacro, Math.max(1, lowerSlots)),
+    upperSeriesQueue: distribute(targetWeeklyMacro, Math.max(1, upperSlots))
   };
 }
 
@@ -264,6 +355,7 @@ function renderGeneratorUI() {
   const matchingExercises = exercisesPool.filter(ex => exerciseMatchesSelectedEquip(ex, categories));
   const methodObj = TRAINING_METHODS[genConfig.method] || TRAINING_METHODS.nucleo;
   const volPreview = calculateTargetSeriesPerPattern(genConfig.daysCount, genConfig.level);
+  const blueprint = SPLIT_BLUEPRINTS[genConfig.daysCount] || SPLIT_BLUEPRINTS[3];
 
   const totalLower = volPreview.lowerSeriesQueue.reduce((a, b) => a + b, 0);
   const totalUpper = volPreview.upperSeriesQueue.reduce((a, b) => a + b, 0);
@@ -271,18 +363,18 @@ function renderGeneratorUI() {
   container.innerHTML = `
     <div class="card">
       <div class="card-title">
-        <span>Generador Automatico de Rutinas por Patrones</span>
+        <span>Generador Inteligente por Bloques y Jerarquia Poliarticular</span>
         <span class="tag-pattern">${matchingExercises.length} ejercicios compatibles</span>
       </div>
 
       <div class="gen-grid">
         <div class="form-group">
-          <label>1. Frecuencia Semanal (2 a 5 Dias)</label>
+          <label>1. Frecuencia Semanal y Estructura (2 a 5 Dias)</label>
           <select class="input-full" onchange="genConfig.daysCount=parseInt(this.value);renderGeneratorUI();">
-            <option value="2" ${genConfig.daysCount === 2 ? "selected" : ""}>2 Dias / Semana (Full Body A/B)</option>
-            <option value="3" ${genConfig.daysCount === 3 ? "selected" : ""}>3 Dias / Semana (Full Body Patrones A/B/C)</option>
-            <option value="4" ${genConfig.daysCount === 4 ? "selected" : ""}>4 Dias / Semana (Split Torso / Pierna por Patrones)</option>
-            <option value="5" ${genConfig.daysCount === 5 ? "selected" : ""}>5 Dias / Semana (Split por Patrones 5 Dias)</option>
+            <option value="2" ${genConfig.daysCount === 2 ? "selected" : ""}>2 Dias / Semana — Full Body (Prioridad Poliarticular Global)</option>
+            <option value="3" ${genConfig.daysCount === 3 ? "selected" : ""}>3 Dias / Semana — Full Body Patrones A/B/C (Base + Unilateral)</option>
+            <option value="4" ${genConfig.daysCount === 4 ? "selected" : ""}>4 Dias / Semana — Split Torso / Pierna (1° Base -> 2° Unilateral -> 3° Analitico)</option>
+            <option value="5" ${genConfig.daysCount === 5 ? "selected" : ""}>5 Dias / Semana — Split por Patrones + Dia 5 Integrado</option>
           </select>
         </div>
 
@@ -298,11 +390,11 @@ function renderGeneratorUI() {
         <div class="form-group">
           <label>3. Fase del Modelo OPT (NASM)</label>
           <select class="input-full" onchange="genConfig.phase=this.value;renderGeneratorUI();">
-            <option value="1" ${genConfig.phase === "1" ? "selected" : ""}>Fase 1: Estabilizacion</option>
-            <option value="2" ${genConfig.phase === "2" ? "selected" : ""}>Fase 2: Fuerza Resistencia</option>
-            <option value="3" ${genConfig.phase === "3" ? "selected" : ""}>Fase 3: Hipertrofia</option>
-            <option value="4" ${genConfig.phase === "4" ? "selected" : ""}>Fase 4: Fuerza Maxima</option>
-            <option value="5" ${genConfig.phase === "5" ? "selected" : ""}>Fase 5: Potencia</option>
+            <option value="1" ${genConfig.phase === "1" ? "selected" : ""}>Fase 1: Estabilizacion (Control y Asimetrias - 60%)</option>
+            <option value="2" ${genConfig.phase === "2" ? "selected" : ""}>Fase 2: Fuerza Resistencia (Biseries Base + Estable - 75%)</option>
+            <option value="3" ${genConfig.phase === "3" ? "selected" : ""}>Fase 3: Hipertrofia (Poliarticular + Volumen - 80%)</option>
+            <option value="4" ${genConfig.phase === "4" ? "selected" : ""}>Fase 4: Fuerza Maxima (Prioridad Absoluta Big 3 / Base - 87.5%)</option>
+            <option value="5" ${genConfig.phase === "5" ? "selected" : ""}>Fase 5: Potencia (Contrastes Base + Explosivo - 85%)</option>
           </select>
         </div>
 
@@ -317,7 +409,13 @@ function renderGeneratorUI() {
       </div>
 
       <div class="gen-method-info">
-        <strong style="color:var(--text-main);">${escapeHtml(methodObj.name)}:</strong> ${escapeHtml(methodObj.desc)}
+        <div style="margin-bottom:4px;"><strong style="color:var(--text-main);">${escapeHtml(methodObj.name)}:</strong> ${escapeHtml(methodObj.desc)}</div>
+        <div style="color:var(--accent); font-size:0.76rem;">
+          <strong>Criterio de Seleccion Activo (${blueprint.splitLabel}):</strong>
+          ${blueprint.isFullBody
+            ? "Abre cada sesion con ejercicios Base Poliarticulares (Sentadilla, Peso Muerto, Press, Dominadas/Remo) e Integrados (Total Body), calculando los kilos sugeridos desde el 1RM Base del cliente."
+            : "Abre cada dia con el ejercicio Base Poliarticular del patron principal (1°), seguido de variantes Unilaterales (2°) y Accesorios/Analiticos (3°-4°) con sus respectivos pesos sugeridos."}
+        </div>
       </div>
 
       <div class="form-group">
@@ -346,7 +444,7 @@ function renderGeneratorUI() {
       <div class="gen-options-row">
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" ${genConfig.includeTransport ? "checked" : ""} onchange="genConfig.includeTransport=this.checked;renderGeneratorUI();">
-          Incluir Cargar y Llevar / Transporte (Milo) en el Bloque de Fuerza
+          Incluir Cargar y Llevar / Transporte (Milo) al cierre del Bloque Principal
         </label>
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" ${genConfig.includePlio ? "checked" : ""} onchange="genConfig.includePlio=this.checked;renderGeneratorUI();">
@@ -373,51 +471,91 @@ function renderGeneratorUI() {
   `;
 }
 
-function getCandidatesForPattern(pattern, categories, level) {
+function getSmartCandidates({ block, pattern, preferredTiers, categories, level }) {
   const allExercises = getLibraryPool();
-  let candidates = allExercises.filter(ex =>
-    ex.pattern === pattern && exerciseMatchesSelectedEquip(ex, categories)
-  );
 
-  if (candidates.length === 0) {
-    candidates = allExercises.filter(ex => ex.pattern === pattern);
-  }
-
-  if (level === "iniciado" && candidates.length > 1) {
-    const beginnerSafe = candidates.filter(ex =>
-      !/pistol|muscle-up|handstand|snatch|arrancada|bottom-up|bent press|anyhow|zercher/i.test(ex.name)
-    );
-    if (beginnerSafe.length > 0) candidates = beginnerSafe;
-  }
-
-  return candidates;
-}
-
-function pickExerciseFromLibrary(pattern, usedIds, categories, level) {
-  const candidates = getCandidatesForPattern(pattern, categories, level);
-  const unused = candidates.filter(ex => !usedIds.has(ex.id));
-  const pool = unused.length > 0 ? unused : candidates;
+  let pool = allExercises.filter(ex => {
+    const meta = typeof getExerciseMeta === "function" ? getExerciseMeta(ex) : { block: "str", tier: "BASE" };
+    const matchBlock = !block || meta.block === block;
+    const matchPattern = !pattern || ex.pattern === pattern;
+    return matchBlock && matchPattern && exerciseMatchesSelectedEquip(ex, categories);
+  });
 
   if (pool.length === 0) {
-    return { id: "fallback_" + pattern, name: "Ejercicio " + (PATTERN_CONFIG[pattern]?.label || pattern) };
+    pool = allExercises.filter(ex => {
+      const meta = typeof getExerciseMeta === "function" ? getExerciseMeta(ex) : { block: "str", tier: "BASE" };
+      return (!block || meta.block === block) && (!pattern || ex.pattern === pattern);
+    });
   }
 
-  const chosen = pool[Math.floor(Math.random() * pool.length)];
+  if (pool.length === 0 && pattern) {
+    pool = allExercises.filter(ex => ex.pattern === pattern);
+  }
+
+  if (level === "iniciado" && pool.length > 1) {
+    const beginnerSafe = pool.filter(ex =>
+      !/pistol|muscle-up|handstand|snatch|arrancada|bottom-up|bent press|anyhow|zercher|good morning|buenos dias|buenos días/i.test(ex.name)
+    );
+    if (beginnerSafe.length > 0) pool = beginnerSafe;
+  }
+
+  if (preferredTiers && preferredTiers.length > 0 && pool.length > 1) {
+    for (const tierTarget of preferredTiers) {
+      const matchingTier = pool.filter(ex => {
+        const meta = typeof getExerciseMeta === "function" ? getExerciseMeta(ex) : { tier: "BASE" };
+        return meta.tier === tierTarget;
+      });
+      if (matchingTier.length > 0) {
+        return matchingTier;
+      }
+    }
+  }
+
+  return pool;
+}
+
+function pickSmartExercise(options, usedIds) {
+  const candidates = getSmartCandidates(options);
+  const unused = candidates.filter(ex => !usedIds.has(ex.id));
+  const finalPool = unused.length > 0 ? unused : candidates;
+
+  if (finalPool.length === 0) {
+    const patLabel = PATTERN_CONFIG[options.pattern]?.label || options.pattern || "General";
+    return { id: "fallback_" + Math.random(), name: "Ejercicio " + patLabel };
+  }
+
+  const chosen = finalPool[Math.floor(Math.random() * finalPool.length)];
   usedIds.add(chosen.id);
   return chosen;
 }
 
-// Funcion del boton "Rotar" en cada fila de la tabla del Editor
+// Botón "Rotar": cambia el ejercicio y recalcula automáticamente los pesos de Sem 1 a 4 según su nuevo elemento y variante
 function rotateRowExercise(bKey, rIdx) {
   const day = appState.days[appState.activeDayIndex];
   if (!day || !day.blocks[bKey] || !day.blocks[bKey][rIdx]) return;
 
   const row = day.blocks[bKey][rIdx];
   const categories = getAvailableEquipmentCategories();
-  const candidates = getCandidatesForPattern(row.pattern, categories, genConfig.level);
+
+  let preferredTiers = null;
+  if (bKey === "str") {
+    if (rIdx === 0 || rIdx === 1) {
+      preferredTiers = ["BASE", "INTEGRADO"];
+    } else {
+      preferredTiers = ["UNILATERAL", "INTEGRADO", "ANALITICO", "BASE"];
+    }
+  }
+
+  const candidates = getSmartCandidates({
+    block: bKey,
+    pattern: row.pattern,
+    preferredTiers,
+    categories,
+    level: genConfig.level
+  });
 
   if (candidates.length === 0) {
-    alert("No hay ejercicios cargados en la Biblioteca para este patrón.");
+    alert("No hay ejercicios cargados en la Biblioteca para este patrón y momento de clase.");
     return;
   }
 
@@ -426,6 +564,11 @@ function rotateRowExercise(bKey, rIdx) {
   const chosen = pool[Math.floor(Math.random() * pool.length)];
 
   row.name = chosen.name;
+
+  if (typeof populateRowSuggestedWeights === "function") {
+    populateRowSuggestedWeights(row, bKey);
+  }
+
   saveToLocalStorage();
   renderBlocks();
 }
@@ -438,26 +581,29 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
 
   let lowerIdx = 0;
   let upperIdx = 0;
-  const usedIds = new Set();
+  const usedIdsWarm = new Set();
+  const usedIdsCore = new Set();
+  const usedIdsStr  = new Set();
+  const usedIdsCool = new Set();
 
   const generatedDays = blueprint.days.map((dayPlan, dIdx) => {
-    const warmEx1 = pickExerciseFromLibrary("MOVILIDAD", usedIds, categories, genConfig.level);
-    const warmEx2 = pickExerciseFromLibrary("MOVILIDAD", usedIds, categories, genConfig.level);
+    const warmEx1 = pickSmartExercise({ block: "warm", pattern: "MOVILIDAD", categories, level: genConfig.level }, usedIdsWarm);
+    const warmEx2 = pickSmartExercise({ block: "warm", pattern: "MOVILIDAD", categories, level: genConfig.level }, usedIdsWarm);
     const warmRows = [
-      { order: "1", name: warmEx1.name, pattern: "MOVILIDAD", sets: 1, reps: "30s-60s", rpe: "Suave", rest: "0s", w1: "", w2: "", w3: "", w4: "" },
-      { order: "2", name: warmEx2.name, pattern: "MOVILIDAD", sets: 2, reps: "10-12", rpe: "Fluido", rest: "30s", w1: "", w2: "", w3: "", w4: "" }
+      { order: "1", name: warmEx1.name, pattern: "MOVILIDAD", sets: 1, reps: "30s-60s", rpe: "SMR / Suave", rest: "0s", w1: "", w2: "", w3: "", w4: "" },
+      { order: "2", name: warmEx2.name, pattern: "MOVILIDAD", sets: 2, reps: "8-10", rpe: "Dinamico", rest: "30s", w1: "", w2: "", w3: "", w4: "" }
     ];
 
-    const coreEx1 = pickExerciseFromLibrary("CORE", usedIds, categories, genConfig.level);
-    const coreEx2 = pickExerciseFromLibrary("CORE", usedIds, categories, genConfig.level);
+    const coreEx1 = pickSmartExercise({ block: "core", pattern: "CORE", categories, level: genConfig.level }, usedIdsCore);
+    const coreEx2 = pickSmartExercise({ block: "core", pattern: "CORE", categories, level: genConfig.level }, usedIdsCore);
     const coreSets = genConfig.level === "iniciado" ? 2 : 3;
     const coreRows = [
       { order: "A1", name: coreEx1.name, pattern: "CORE", sets: coreSets, reps: "8-12 / 30s", rpe: "Control", rest: "45s", w1: "", w2: "", w3: "", w4: "" },
-      { order: "A2", name: coreEx2.name, pattern: "CORE", sets: 2, reps: "8-10 c/l", rpe: "Control", rest: "45s", w1: "", w2: "", w3: "", w4: "" }
+      { order: "A2", name: coreEx2.name, pattern: "CORE", sets: 2, reps: "8-10 c/l", rpe: "Estabilidad", rest: "45s", w1: "", w2: "", w3: "", w4: "" }
     ];
 
     if (genConfig.includePlio || genConfig.phase === "5") {
-      const plioEx = pickExerciseFromLibrary("PLIOMETRIA", usedIds, categories, genConfig.level);
+      const plioEx = pickSmartExercise({ block: "core", pattern: "PLIOMETRIA", categories, level: genConfig.level }, usedIdsCore);
       coreRows.push({
         order: "A3",
         name: plioEx.name,
@@ -470,26 +616,40 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
       });
     }
 
-    const strRows = dayPlan.patterns.map((pat, pIdx) => {
-      const ex = pickExerciseFromLibrary(pat, usedIds, categories, genConfig.level);
-      const isLower = (pat === "RODILLA" || pat === "CADERA");
+    const strRows = dayPlan.slots.map((slot, sIdx) => {
+      let tiersForSlot = slot.preferredTiers;
+      if (genConfig.phase === "4" && sIdx < 2) {
+        tiersForSlot = ["BASE", "INTEGRADO"];
+      } else if (genConfig.phase === "1" && sIdx >= 2) {
+        tiersForSlot = ["UNILATERAL", "INTEGRADO", "ANALITICO", "BASE"];
+      }
+
+      const ex = pickSmartExercise({
+        block: "str",
+        pattern: slot.pattern,
+        preferredTiers: tiersForSlot,
+        categories,
+        level: genConfig.level
+      }, usedIdsStr);
+
+      const isLower = (slot.pattern === "RODILLA" || slot.pattern === "CADERA");
       const rawSets = isLower
         ? (volQueues.lowerSeriesQueue[lowerIdx++] || 3)
         : (volQueues.upperSeriesQueue[upperIdx++] || 3);
 
       const formatted = methodObj.format(rawSets, genConfig.phase);
 
-      let orderLabel = `B${pIdx + 1}`;
+      let orderLabel = `B${sIdx + 1}`;
       if (genConfig.method === "superserie_pha" || genConfig.phase === "2") {
-        const pairChar = String.fromCharCode(66 + Math.floor(pIdx / 2));
-        const pairNum = (pIdx % 2) + 1;
+        const pairChar = String.fromCharCode(66 + Math.floor(sIdx / 2));
+        const pairNum = (sIdx % 2) + 1;
         orderLabel = `${pairChar}${pairNum}`;
       }
 
       return {
         order: orderLabel,
         name: ex.name,
-        pattern: pat,
+        pattern: slot.pattern,
         sets: formatted.sets,
         reps: formatted.reps,
         rpe: formatted.rpe,
@@ -499,22 +659,22 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
     });
 
     if (genConfig.includeTransport && (dIdx % 2 === 0)) {
-      const carryEx = pickExerciseFromLibrary("TRANSPORTE", usedIds, categories, genConfig.level);
+      const carryEx = pickSmartExercise({ block: "str", pattern: "TRANSPORTE", categories, level: genConfig.level }, usedIdsStr);
       strRows.push({
         order: "D",
         name: carryEx.name,
         pattern: "TRANSPORTE",
         sets: 2,
         reps: "20-30m / 30s",
-        rpe: "Pesado",
+        rpe: "Postura / Pesado",
         rest: "60s",
         w1: "", w2: "", w3: "", w4: ""
       });
     }
 
-    const coolEx = pickExerciseFromLibrary("MOVILIDAD", new Set(), categories, genConfig.level);
+    const coolEx = pickSmartExercise({ block: "cool", pattern: "MOVILIDAD", categories, level: genConfig.level }, usedIdsCool);
     const coolRows = [
-      { order: "1", name: coolEx.name, pattern: "MOVILIDAD", sets: 1, reps: "30s-2m", rpe: "Relajacion", rest: "0s", w1: "", w2: "", w3: "", w4: "" }
+      { order: "1", name: coolEx.name, pattern: "MOVILIDAD", sets: 1, reps: "2-3 min", rpe: "Relajacion / 90-90", rest: "0s", w1: "", w2: "", w3: "", w4: "" }
     ];
 
     return {
@@ -537,6 +697,11 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
 
   syncMetaInputs();
   updateNASMAssistant();
+
+  if (typeof applyBaseStrengthToRoutine === "function") {
+    applyBaseStrengthToRoutine(true);
+  }
+
   switchCoachMainTab("editor");
 
   if (autoSaveToCloud && typeof saveRoutineToCloud === "function") {
