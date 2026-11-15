@@ -1,5 +1,5 @@
 // =========================================================================
-// GENERATOR.JS: MOTOR INTELIGENTE POR BLOQUES, JERARQUIA Y CARGA AUTOMATICA
+// GENERATOR.JS: MOTOR INTELIGENTE CON CONTROL DE SERIES, REPS Y JERARQUIA
 // =========================================================================
 
 let genConfig = {
@@ -7,6 +7,11 @@ let genConfig = {
   level: "intermedio",
   phase: "3",
   method: "nucleo",
+  mainSetsScheme: "4_3", // "3_all" | "4_3" | "4_all" | "5_4"
+  warmCoreSetsScheme: "2_2", // "2_2" | "2_3" | "1_2"
+  customReps: "8-10",
+  customRpe: "80%",
+  customRest: "90s",
   selectedEquip: ["ALL"],
   includeTransport: true,
   includePlio: true
@@ -26,80 +31,78 @@ const BASE_EQUIP_CATEGORIES = [
 const TRAINING_METHODS = {
   nucleo: {
     name: "Series en el Nucleo (Carga Estable - EAC / Milo)",
-    desc: "Mantiene el peso y las repeticiones constantes en todas las series de trabajo. Ideal para estabilizar la tecnica y acumular tension mecanica.",
-    format: (sets, phase) => {
-      const p = {
-        "1": { reps: "12-15", rpe: "60% (4/2/1)", rest: "60s" },
-        "2": { reps: "10-12", rpe: "75% (2/0/2)", rest: "60s" },
-        "3": { reps: "8-10",  rpe: "80% (Estable)", rest: "90s" },
-        "4": { reps: "4-5",   rpe: "87.5% (Pesado)", rest: "3m" },
-        "5": { reps: "5",     rpe: "85% / Explosivo", rest: "2m" }
-      }[phase] || { reps: "8-10", rpe: "80%", rest: "90s" };
-      return { sets, reps: p.reps, rpe: p.rpe, rest: p.rest };
-    }
+    desc: "Mantiene el peso y las repeticiones estables en todas las series de trabajo (3 a 4 series). Ideal para consolidar tecnica y acumular tension mecanica.",
+    getDefaults: (phase) => ({
+      "1": { reps: "12-15", rpe: "60% (Control)", rest: "60s" },
+      "2": { reps: "10-12", rpe: "75% (Estable)", rest: "60s" },
+      "3": { reps: "8-10",  rpe: "80% (Hipertrofia)", rest: "90s" },
+      "4": { reps: "4-6",   rpe: "87.5% (Pesado)", rest: "3m" },
+      "5": { reps: "5",     rpe: "85% / Explosivo", rest: "2m" }
+    }[phase] || { reps: "8-10", rpe: "80%", rest: "90s" }),
+    formatRepsForSlot: (sets, phase, defaultReps) => defaultReps
   },
   piramide_trunca: {
     name: "Piramide Trunca Ascendente (EAC Weightlifting I)",
     desc: "Sube el porcentaje de carga y baja las repeticiones en cada serie, frenando en el porcentaje objetivo del dia sin llegar al fallo maximo.",
-    format: (sets, phase) => {
+    getDefaults: (phase) => (phase === "4" || phase === "5")
+      ? { reps: "6-5-4-3", rpe: "80-90%", rest: "2.5m" }
+      : { reps: "12-10-8-6", rpe: "70-82.5%", rest: "90s" },
+    formatRepsForSlot: (sets, phase, defaultReps) => {
       if (phase === "4" || phase === "5") {
-        const repMap = { 2: "5-3", 3: "6-4-2", 4: "6-5-4-3", 5: "6-5-4-3-2" };
-        return { sets, reps: repMap[sets] || "6-5-4-3", rpe: "80-92.5%", rest: "3m" };
+        return sets === 3 ? "6-4-2" : (sets >= 5 ? "6-5-4-3-2" : "6-5-4-3");
       }
-      const repMap = { 2: "10-8", 3: "12-10-8", 4: "12-10-8-6", 5: "12-10-8-6-6" };
-      return { sets, reps: repMap[sets] || "12-10-8-6", rpe: "65-80%", rest: "90s-2m" };
+      return sets === 3 ? "12-10-8" : (sets >= 5 ? "12-10-8-6-6" : "12-10-8-6");
     }
   },
   piramidal_inverso: {
     name: "Piramidal Inverso (Descendente en Carga)",
     desc: "Ubica la serie mas pesada al principio (con el sistema nervioso fresco) y reduce la carga aumentando repeticiones en las series siguientes.",
-    format: (sets, phase) => {
+    getDefaults: (phase) => (phase === "4")
+      ? { reps: "3-4-5-6", rpe: "90-80%", rest: "3m" }
+      : { reps: "6-8-10-12", rpe: "82.5-72%", rest: "90s-2m" },
+    formatRepsForSlot: (sets, phase, defaultReps) => {
       if (phase === "4") {
-        const repMap = { 2: "3-5", 3: "3-4-6", 4: "2-4-5-6", 5: "2-3-4-5-6" };
-        return { sets, reps: repMap[sets] || "3-4-6", rpe: "90-80%", rest: "3m" };
+        return sets === 3 ? "3-4-6" : "3-4-5-6";
       }
-      const repMap = { 2: "8-10", 3: "6-8-10", 4: "6-8-10-12", 5: "6-8-8-10-12" };
-      return { sets, reps: repMap[sets] || "6-8-10-12", rpe: "82.5-70%", rest: "2m" };
+      return sets === 3 ? "6-8-10" : "6-8-10-12";
     }
   },
   trepada_rechazo: {
     name: "Trepada y Rechazo (Back-Off Sets - EAC)",
     desc: "Sube hasta el peso objetivo del dia y luego aplica series de rechazo (-10% de peso) para sumar volumen efectivo con tecnica limpia.",
-    format: (sets, phase) => {
-      if (phase === "4") {
-        return { sets, reps: sets >= 4 ? "5-3-2 + 1x5" : "5-3 + 1x5", rpe: "90% / -10%", rest: "3m" };
-      }
-      return { sets, reps: sets >= 4 ? "10-8-6 + 1x10" : "10-8 + 1x10", rpe: "82.5% / -10%", rest: "2m" };
+    getDefaults: (phase) => (phase === "4")
+      ? { reps: "5-3-2 + 1x5", rpe: "90% / -10%", rest: "3m" }
+      : { reps: "10-8-6 + 1x10", rpe: "82.5% / -10%", rest: "2m" },
+    formatRepsForSlot: (sets, phase, defaultReps) => {
+      if (phase === "4") return sets === 3 ? "5-3 + 1x5" : "5-3-2 + 1x5";
+      return sets === 3 ? "10-8 + 1x10" : "10-8-6 + 1x10";
     }
   },
   escalera: {
     name: "Sistema Escalonado / Escalera (Jeronimo Milo)",
     desc: "Acumula volumen de calidad mediante escalones progresivos de repeticiones (ej. 1-2-3 o 2-3-5) manteniendo velocidad de ejecucion.",
-    format: (sets, phase) => {
-      if (phase === "4" || phase === "5") {
-        return { sets, reps: "Esc. 1-2-3 (6 reps)", rpe: "82.5% (5RM)", rest: "2m" };
-      }
-      return { sets, reps: "Esc. 2-3-5 (10 reps)", rpe: "77.5% (8RM)", rest: "90s" };
-    }
+    getDefaults: (phase) => (phase === "4" || phase === "5")
+      ? { reps: "Esc. 1-2-3 (6 reps)", rpe: "82.5% (5RM)", rest: "2m" }
+      : { reps: "Esc. 2-3-5 (10 reps)", rpe: "77.5% (8RM)", rest: "90s" },
+    formatRepsForSlot: (sets, phase, defaultReps) => defaultReps
   },
   oleaje: {
     name: "Sistema en Oleaje / Ondulante (EAC / Milo)",
     desc: "Alterna olas de intensidad y repeticiones dentro de la misma sesion aprovechando la potenciacion post-tetanica.",
-    format: (sets, phase) => {
-      if (phase === "4") {
-        return { sets: Math.max(4, sets), reps: "5-3-5-3", rpe: "82-90%", rest: "2.5m" };
-      }
-      return { sets: Math.max(4, sets), reps: "10-6-10-6", rpe: "72-82%", rest: "90s" };
-    }
+    getDefaults: (phase) => (phase === "4")
+      ? { reps: "5-3-5-3", rpe: "82-90%", rest: "2.5m" }
+      : { reps: "10-6-10-6", rpe: "75-82.5%", rest: "90s" },
+    formatRepsForSlot: (sets, phase, defaultReps) => defaultReps
   },
   superserie_pha: {
     name: "Superseries Agonista-Antagonista / PHA (NASM OPT)",
     desc: "Agrupa patrones opuestos en biseries (B1/B2, C1/C2) optimizando la densidad de la clase y la accion cardiaca periferica.",
-    format: (sets, phase) => {
-      const reps = phase === "1" ? "12-15" : (phase === "4" ? "5" : "8-10");
-      const rpe  = phase === "1" ? "60%" : (phase === "4" ? "87.5%" : "77.5%");
-      return { sets, reps, rpe, rest: "60s" };
-    }
+    getDefaults: (phase) => ({
+      reps: phase === "1" ? "12-15" : (phase === "4" ? "5" : "8-10"),
+      rpe: phase === "1" ? "60%" : (phase === "4" ? "87.5%" : "77.5%"),
+      rest: "60s"
+    }),
+    formatRepsForSlot: (sets, phase, defaultReps) => defaultReps
   }
 };
 
@@ -255,6 +258,7 @@ const SPLIT_BLUEPRINTS = {
 };
 
 window.addEventListener("DOMContentLoaded", () => {
+  syncGenPrescriptionFromPhaseAndMethod();
   renderGeneratorUI();
 });
 
@@ -285,6 +289,66 @@ function getAvailableEquipmentCategories() {
   }));
 
   return [...BASE_EQUIP_CATEGORIES, ...dynamicCats];
+}
+
+// Determina las series exactas de cada ejercicio del Bloque Principal (siempre entre 3 y 5 series)
+function getSetsForMainSlot(slotIdx) {
+  const isPrimarySlot = slotIdx === 0 || slotIdx === 1;
+  switch (genConfig.mainSetsScheme) {
+    case "3_all": return 3;
+    case "4_3":   return isPrimarySlot ? 4 : 3;
+    case "4_all": return 4;
+    case "5_4":   return isPrimarySlot ? 5 : 4;
+    default:      return isPrimarySlot ? 4 : 3;
+  }
+}
+
+function getSetsForWarmAndCore() {
+  if (genConfig.warmCoreSetsScheme === "1_2") return { warmSets: 1, coreSets: 2 };
+  if (genConfig.warmCoreSetsScheme === "2_3") return { warmSets: 2, coreSets: 3 };
+  return { warmSets: 2, coreSets: 2 };
+}
+
+function syncGenPrescriptionFromPhaseAndMethod() {
+  const methodObj = TRAINING_METHODS[genConfig.method] || TRAINING_METHODS.nucleo;
+  const def = methodObj.getDefaults(genConfig.phase);
+  genConfig.customReps = def.reps;
+  genConfig.customRpe  = def.rpe;
+  genConfig.customRest = def.rest;
+}
+
+function onGenLevelChange(newLevel) {
+  genConfig.level = newLevel;
+  if (newLevel === "iniciado") {
+    genConfig.mainSetsScheme = "3_all";
+    genConfig.warmCoreSetsScheme = "2_2";
+  } else if (newLevel === "intermedio") {
+    genConfig.mainSetsScheme = "4_3";
+    genConfig.warmCoreSetsScheme = "2_2";
+  } else {
+    genConfig.mainSetsScheme = "4_all";
+    genConfig.warmCoreSetsScheme = "2_3";
+  }
+  renderGeneratorUI();
+}
+
+function onGenPhaseOrMethodChange(field, val) {
+  genConfig[field] = val;
+  if (field === "phase") {
+    if (val === "1") genConfig.mainSetsScheme = "3_all";
+    else if (val === "4") genConfig.mainSetsScheme = "4_all";
+    else if (genConfig.level === "intermedio") genConfig.mainSetsScheme = "4_3";
+  }
+  syncGenPrescriptionFromPhaseAndMethod();
+  renderGeneratorUI();
+}
+
+function applyQuickMiloPrescription(setsScheme, repsStr, rpeStr, restStr) {
+  genConfig.mainSetsScheme = setsScheme;
+  genConfig.customReps = repsStr;
+  genConfig.customRpe = rpeStr;
+  genConfig.customRest = restStr;
+  renderGeneratorUI();
 }
 
 function toggleGenEquip(key) {
@@ -318,31 +382,27 @@ function exerciseMatchesSelectedEquip(ex, allCategories) {
   });
 }
 
-function calculateTargetSeriesPerPattern(daysCount, level) {
-  const targetWeeklyMacro = level === "iniciado" ? 10 : (level === "intermedio" ? 14 : 17);
-  const blueprint = SPLIT_BLUEPRINTS[daysCount] || SPLIT_BLUEPRINTS[3];
+function calculateProjectedWeeklyVolume() {
+  const blueprint = SPLIT_BLUEPRINTS[genConfig.daysCount] || SPLIT_BLUEPRINTS[3];
+  let rodilla = 0, cadera = 0, empuje = 0, traccion = 0;
 
-  let lowerSlots = 0;
-  let upperSlots = 0;
   blueprint.days.forEach(d => {
-    d.slots.forEach(s => {
-      if (s.pattern === "RODILLA" || s.pattern === "CADERA") lowerSlots++;
-      else upperSlots++;
+    d.slots.forEach((s, idx) => {
+      const sets = getSetsForMainSlot(idx);
+      if (s.pattern === "RODILLA") rodilla += sets;
+      else if (s.pattern === "CADERA") cadera += sets;
+      else if (s.pattern.startsWith("EMPUJE")) empuje += sets;
+      else if (s.pattern.startsWith("TRACCION")) traccion += sets;
     });
   });
 
-  const distribute = (totalTarget, slotsCount) => {
-    const base = Math.max(2, Math.floor(totalTarget / slotsCount));
-    const rem = totalTarget - (base * slotsCount);
-    return Array.from({ length: slotsCount }, (_, i) => {
-      const val = i < rem ? base + 1 : base;
-      return Math.min(4, Math.max(2, val));
-    });
-  };
-
   return {
-    lowerSeriesQueue: distribute(targetWeeklyMacro, Math.max(1, lowerSlots)),
-    upperSeriesQueue: distribute(targetWeeklyMacro, Math.max(1, upperSlots))
+    rodilla,
+    cadera,
+    empuje,
+    traccion,
+    totalLower: rodilla + cadera,
+    totalUpper: empuje + traccion
   };
 }
 
@@ -354,16 +414,13 @@ function renderGeneratorUI() {
   const exercisesPool = getLibraryPool();
   const matchingExercises = exercisesPool.filter(ex => exerciseMatchesSelectedEquip(ex, categories));
   const methodObj = TRAINING_METHODS[genConfig.method] || TRAINING_METHODS.nucleo;
-  const volPreview = calculateTargetSeriesPerPattern(genConfig.daysCount, genConfig.level);
   const blueprint = SPLIT_BLUEPRINTS[genConfig.daysCount] || SPLIT_BLUEPRINTS[3];
-
-  const totalLower = volPreview.lowerSeriesQueue.reduce((a, b) => a + b, 0);
-  const totalUpper = volPreview.upperSeriesQueue.reduce((a, b) => a + b, 0);
+  const vol = calculateProjectedWeeklyVolume();
 
   container.innerHTML = `
     <div class="card">
       <div class="card-title">
-        <span>Generador Inteligente por Bloques y Jerarquia Poliarticular</span>
+        <span>Generador Inteligente por Bloques y Control de Dosificacion</span>
         <span class="tag-pattern">${matchingExercises.length} ejercicios compatibles</span>
       </div>
 
@@ -379,28 +436,28 @@ function renderGeneratorUI() {
         </div>
 
         <div class="form-group">
-          <label>2. Nivel del Alumno (Control de Volumen Semanal)</label>
-          <select class="input-full" onchange="genConfig.level=this.value;renderGeneratorUI();">
-            <option value="iniciado" ${genConfig.level === "iniciado" ? "selected" : ""}>Iniciado / Principiante (10-12 series/sem)</option>
-            <option value="intermedio" ${genConfig.level === "intermedio" ? "selected" : ""}>Intermedio — Rango Ideal (12-15 series/sem)</option>
-            <option value="avanzado" ${genConfig.level === "avanzado" ? "selected" : ""}>Avanzado (16-18 series/sem - Tope seguro &lt;20)</option>
+          <label>2. Nivel del Alumno (Ajusta complejidad y series sugeridas)</label>
+          <select class="input-full" onchange="onGenLevelChange(this.value)">
+            <option value="iniciado" ${genConfig.level === "iniciado" ? "selected" : ""}>Iniciado / Base (Sugiere 3 series en Bloque Principal)</option>
+            <option value="intermedio" ${genConfig.level === "intermedio" ? "selected" : ""}>Intermedio (Sugiere 4 series en Basicos y 3 en Secundarios)</option>
+            <option value="avanzado" ${genConfig.level === "avanzado" ? "selected" : ""}>Avanzado (Sugiere 4 series en todos los ejercicios principales)</option>
           </select>
         </div>
 
         <div class="form-group">
           <label>3. Fase del Modelo OPT (NASM)</label>
-          <select class="input-full" onchange="genConfig.phase=this.value;renderGeneratorUI();">
-            <option value="1" ${genConfig.phase === "1" ? "selected" : ""}>Fase 1: Estabilizacion (Control y Asimetrias - 60%)</option>
-            <option value="2" ${genConfig.phase === "2" ? "selected" : ""}>Fase 2: Fuerza Resistencia (Biseries Base + Estable - 75%)</option>
-            <option value="3" ${genConfig.phase === "3" ? "selected" : ""}>Fase 3: Hipertrofia (Poliarticular + Volumen - 80%)</option>
-            <option value="4" ${genConfig.phase === "4" ? "selected" : ""}>Fase 4: Fuerza Maxima (Prioridad Absoluta Big 3 / Base - 87.5%)</option>
-            <option value="5" ${genConfig.phase === "5" ? "selected" : ""}>Fase 5: Potencia (Contrastes Base + Explosivo - 85%)</option>
+          <select class="input-full" onchange="onGenPhaseOrMethodChange('phase', this.value)">
+            <option value="1" ${genConfig.phase === "1" ? "selected" : ""}>Fase 1: Estabilizacion (12-15 reps - 60%)</option>
+            <option value="2" ${genConfig.phase === "2" ? "selected" : ""}>Fase 2: Fuerza Resistencia (10-12 reps - 75%)</option>
+            <option value="3" ${genConfig.phase === "3" ? "selected" : ""}>Fase 3: Hipertrofia (8-10 reps - 80%)</option>
+            <option value="4" ${genConfig.phase === "4" ? "selected" : ""}>Fase 4: Fuerza Maxima (4-6 reps - 87.5%)</option>
+            <option value="5" ${genConfig.phase === "5" ? "selected" : ""}>Fase 5: Potencia (5 reps - 85% / Explosivo)</option>
           </select>
         </div>
 
         <div class="form-group">
           <label>4. Metodo de Entrenamiento (EAC / Milo / NASM)</label>
-          <select class="input-full" onchange="genConfig.method=this.value;renderGeneratorUI();">
+          <select class="input-full" onchange="onGenPhaseOrMethodChange('method', this.value)">
             ${Object.entries(TRAINING_METHODS).map(([k, m]) =>
               `<option value="${k}" ${genConfig.method === k ? "selected" : ""}>${escapeHtml(m.name)}</option>`
             ).join("")}
@@ -408,19 +465,73 @@ function renderGeneratorUI() {
         </div>
       </div>
 
+      <!-- PANEL DE CONTROL DIRECTO DE SERIES, REPETICIONES E INTENSIDAD -->
+      <div style="background:rgba(56,189,248,0.05); border:1px solid var(--border); border-radius:6px; padding:11px 13px; margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:9px;">
+          <strong style="font-size:0.78rem; color:var(--accent); text-transform:uppercase;">
+            5. Control Directo de Series y Repeticiones (Editable antes de generar)
+          </strong>
+          <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
+            <span style="font-size:0.72rem; color:var(--text-muted);">Presets Milo / Gym:</span>
+            <button type="button" class="btn" style="padding:3px 8px; font-size:0.71rem;" onclick="applyQuickMiloPrescription('3_all','8-10','80%','75s')">3 x 8-10</button>
+            <button type="button" class="btn" style="padding:3px 8px; font-size:0.71rem;" onclick="applyQuickMiloPrescription('4_3','8-10','80%','90s')">4/3 x 8-10</button>
+            <button type="button" class="btn" style="padding:3px 8px; font-size:0.71rem;" onclick="applyQuickMiloPrescription('4_all','10-12','75%','60s')">4 x 10-12</button>
+            <button type="button" class="btn" style="padding:3px 8px; font-size:0.71rem;" onclick="applyQuickMiloPrescription('4_all','6','82.5%','2m')">4 x 6</button>
+            <button type="button" class="btn" style="padding:3px 8px; font-size:0.71rem;" onclick="applyQuickMiloPrescription('5_4','5','85%','2.5m')">5 x 5</button>
+          </div>
+        </div>
+
+        <div class="gen-grid" style="margin-bottom:0;">
+          <div class="form-group">
+            <label>Series en Bloque Principal (Fuerza)</label>
+            <select class="input-full" onchange="genConfig.mainSetsScheme=this.value; renderGeneratorUI();">
+              <option value="3_all" ${genConfig.mainSetsScheme === "3_all" ? "selected" : ""}>3 Series en todos los ejercicios (3x)</option>
+              <option value="4_3" ${genConfig.mainSetsScheme === "4_3" ? "selected" : ""}>4 Series en Básicos (1°-2°) y 3 en Secundarios (3°-4°)</option>
+              <option value="4_all" ${genConfig.mainSetsScheme === "4_all" ? "selected" : ""}>4 Series en todos los ejercicios (4x)</option>
+              <option value="5_4" ${genConfig.mainSetsScheme === "5_4" ? "selected" : ""}>5 Series en Básicos y 4 en Secundarios (5x / 4x)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Series en Entrada en Calor y Zona Media</label>
+            <select class="input-full" onchange="genConfig.warmCoreSetsScheme=this.value; renderGeneratorUI();">
+              <option value="2_2" ${genConfig.warmCoreSetsScheme === "2_2" ? "selected" : ""}>2 Series Entrada en Calor / 2 Series Zona Media</option>
+              <option value="2_3" ${genConfig.warmCoreSetsScheme === "2_3" ? "selected" : ""}>2 Series Entrada en Calor / 3 Series Zona Media</option>
+              <option value="1_2" ${genConfig.warmCoreSetsScheme === "1_2" ? "selected" : ""}>1 Serie Entrada en Calor / 2 Series Zona Media</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Repeticiones (Bloque Principal)</label>
+            <input type="text" class="input-full" value="${escapeHtml(genConfig.customReps)}" oninput="genConfig.customReps=this.value" placeholder="Ej: 8-10 o 12-10-8-6">
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div class="form-group">
+              <label>Intensidad / %</label>
+              <input type="text" class="input-full" value="${escapeHtml(genConfig.customRpe)}" oninput="genConfig.customRpe=this.value" placeholder="Ej: 80%">
+            </div>
+            <div class="form-group">
+              <label>Pausa</label>
+              <input type="text" class="input-full" value="${escapeHtml(genConfig.customRest)}" oninput="genConfig.customRest=this.value" placeholder="Ej: 90s">
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="gen-method-info">
         <div style="margin-bottom:4px;"><strong style="color:var(--text-main);">${escapeHtml(methodObj.name)}:</strong> ${escapeHtml(methodObj.desc)}</div>
         <div style="color:var(--accent); font-size:0.76rem;">
-          <strong>Criterio de Seleccion Activo (${blueprint.splitLabel}):</strong>
+          <strong>Estructura Activa (${blueprint.splitLabel}):</strong>
           ${blueprint.isFullBody
-            ? "Abre cada sesion con ejercicios Base Poliarticulares (Sentadilla, Peso Muerto, Press, Dominadas/Remo) e Integrados (Total Body), calculando los kilos sugeridos desde el 1RM Base del cliente."
-            : "Abre cada dia con el ejercicio Base Poliarticular del patron principal (1°), seguido de variantes Unilaterales (2°) y Accesorios/Analiticos (3°-4°) con sus respectivos pesos sugeridos."}
+            ? "Abre cada sesion con ejercicios Base Poliarticulares (Sentadilla, Peso Muerto, Press, Dominadas/Remo) e Integrados, calculando los kilos desde el 1RM Base del cliente."
+            : "Abre cada dia con el ejercicio Base Poliarticular del patron principal (1°), seguido de variantes Unilaterales (2°) y Accesorios/Analiticos (3°-4°)."}
         </div>
       </div>
 
       <div class="form-group">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-          <label style="margin:0;">5. Filtrar por Elementos Disponibles (También aplica al botón "Rotar" de la tabla)</label>
+          <label style="margin:0;">6. Filtrar por Elementos Disponibles (También aplica al botón "Rotar" de la tabla)</label>
           <div style="display:flex; gap:5px; flex-wrap:wrap;">
             <button class="btn" style="padding:3px 8px; font-size:0.72rem;" onclick="setQuickEquipPreset(['ALL'])">Todos</button>
             <button class="btn" style="padding:3px 8px; font-size:0.72rem;" onclick="setQuickEquipPreset(['PESO_CORPORAL'])">Solo Peso Corporal</button>
@@ -444,19 +555,22 @@ function renderGeneratorUI() {
       <div class="gen-options-row">
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" ${genConfig.includeTransport ? "checked" : ""} onchange="genConfig.includeTransport=this.checked;renderGeneratorUI();">
-          Incluir Cargar y Llevar / Transporte (Milo) al cierre del Bloque Principal
+          Incluir Cargar y Llevar / Transporte (Milo) al cierre del Bloque Principal (3 series)
         </label>
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" ${genConfig.includePlio ? "checked" : ""} onchange="genConfig.includePlio=this.checked;renderGeneratorUI();">
-          Incluir Pliometria / Potencia en el Bloque 2 (Activacion)
+          Incluir Pliometria / Potencia en el Bloque 2 (Activacion - 2 series)
         </label>
       </div>
 
       <div class="gen-preview-bar">
-        <div style="display:flex; gap:14px; flex-wrap:wrap; font-size:0.8rem;">
-          <span><strong>Volumen Semanal Proyectado:</strong></span>
-          <span style="color:var(--series-green); font-weight:700;">Tren Inferior: ${totalLower} series/sem</span>
-          <span style="color:var(--series-green); font-weight:700;">Tren Superior: ${totalUpper} series/sem</span>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:0.78rem; align-items:center;">
+          <span><strong>Series Semanales por Patrón:</strong></span>
+          <span style="color:var(--series-green); font-weight:700;">Rodilla: ${vol.rodilla}</span>
+          <span style="color:var(--series-green); font-weight:700;">Cadera: ${vol.cadera}</span>
+          <span style="color:var(--series-green); font-weight:700;">Empujes: ${vol.empuje}</span>
+          <span style="color:var(--series-green); font-weight:700;">Tracciones: ${vol.traccion}</span>
+          <span style="color:var(--text-muted);">| Total Inf: ${vol.totalLower} • Sup: ${vol.totalUpper}</span>
         </div>
         <div style="display:flex; gap:8px;">
           <button class="btn btn-primary" style="padding:9px 16px; font-weight:700;" onclick="generateAutomaticRoutine(false)">
@@ -529,7 +643,6 @@ function pickSmartExercise(options, usedIds) {
   return chosen;
 }
 
-// Botón "Rotar": cambia el ejercicio y recalcula automáticamente los pesos de Sem 1 a 4 según su nuevo elemento y variante
 function rotateRowExercise(bKey, rIdx) {
   const day = appState.days[appState.activeDayIndex];
   if (!day || !day.blocks[bKey] || !day.blocks[bKey][rIdx]) return;
@@ -577,29 +690,28 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
   const categories = getAvailableEquipmentCategories();
   const blueprint = SPLIT_BLUEPRINTS[genConfig.daysCount] || SPLIT_BLUEPRINTS[3];
   const methodObj = TRAINING_METHODS[genConfig.method] || TRAINING_METHODS.nucleo;
-  const volQueues = calculateTargetSeriesPerPattern(genConfig.daysCount, genConfig.level);
+  const { warmSets, coreSets } = getSetsForWarmAndCore();
 
-  let lowerIdx = 0;
-  let upperIdx = 0;
   const usedIdsWarm = new Set();
   const usedIdsCore = new Set();
   const usedIdsStr  = new Set();
   const usedIdsCool = new Set();
 
   const generatedDays = blueprint.days.map((dayPlan, dIdx) => {
+    // 1. ENTRADA EN CALOR (1 a 2 series según configuración)
     const warmEx1 = pickSmartExercise({ block: "warm", pattern: "MOVILIDAD", categories, level: genConfig.level }, usedIdsWarm);
     const warmEx2 = pickSmartExercise({ block: "warm", pattern: "MOVILIDAD", categories, level: genConfig.level }, usedIdsWarm);
     const warmRows = [
-      { order: "1", name: warmEx1.name, pattern: "MOVILIDAD", sets: 1, reps: "30s-60s", rpe: "SMR / Suave", rest: "0s", w1: "", w2: "", w3: "", w4: "" },
-      { order: "2", name: warmEx2.name, pattern: "MOVILIDAD", sets: 2, reps: "8-10", rpe: "Dinamico", rest: "30s", w1: "", w2: "", w3: "", w4: "" }
+      { order: "1", name: warmEx1.name, pattern: "MOVILIDAD", sets: warmSets, reps: "30s-60s", rpe: "SMR / Movilidad", rest: "0s", w1: "", w2: "", w3: "", w4: "" },
+      { order: "2", name: warmEx2.name, pattern: "MOVILIDAD", sets: warmSets, reps: "8-10", rpe: "Dinamico", rest: "30s", w1: "", w2: "", w3: "", w4: "" }
     ];
 
+    // 2. ZONA MEDIA Y ACTIVACIÓN (2 series por defecto, o 3 si se eligió 2_3)
     const coreEx1 = pickSmartExercise({ block: "core", pattern: "CORE", categories, level: genConfig.level }, usedIdsCore);
     const coreEx2 = pickSmartExercise({ block: "core", pattern: "CORE", categories, level: genConfig.level }, usedIdsCore);
-    const coreSets = genConfig.level === "iniciado" ? 2 : 3;
     const coreRows = [
       { order: "A1", name: coreEx1.name, pattern: "CORE", sets: coreSets, reps: "8-12 / 30s", rpe: "Control", rest: "45s", w1: "", w2: "", w3: "", w4: "" },
-      { order: "A2", name: coreEx2.name, pattern: "CORE", sets: 2, reps: "8-10 c/l", rpe: "Estabilidad", rest: "45s", w1: "", w2: "", w3: "", w4: "" }
+      { order: "A2", name: coreEx2.name, pattern: "CORE", sets: coreSets, reps: "8-10 c/l", rpe: "Estabilidad", rest: "45s", w1: "", w2: "", w3: "", w4: "" }
     ];
 
     if (genConfig.includePlio || genConfig.phase === "5") {
@@ -608,7 +720,7 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
         order: "A3",
         name: plioEx.name,
         pattern: "PLIOMETRIA",
-        sets: 3,
+        sets: 2,
         reps: "5-6",
         rpe: "Explosivo",
         rest: "60s",
@@ -616,6 +728,7 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
       });
     }
 
+    // 3. BLOQUE PRINCIPAL DE FUERZA (Siempre 3, 4 o 5 series según el esquema elegido)
     const strRows = dayPlan.slots.map((slot, sIdx) => {
       let tiersForSlot = slot.preferredTiers;
       if (genConfig.phase === "4" && sIdx < 2) {
@@ -632,12 +745,8 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
         level: genConfig.level
       }, usedIdsStr);
 
-      const isLower = (slot.pattern === "RODILLA" || slot.pattern === "CADERA");
-      const rawSets = isLower
-        ? (volQueues.lowerSeriesQueue[lowerIdx++] || 3)
-        : (volQueues.upperSeriesQueue[upperIdx++] || 3);
-
-      const formatted = methodObj.format(rawSets, genConfig.phase);
+      const setsForThisRow = getSetsForMainSlot(sIdx);
+      const repsForThisRow = methodObj.formatRepsForSlot(setsForThisRow, genConfig.phase, genConfig.customReps || "8-10");
 
       let orderLabel = `B${sIdx + 1}`;
       if (genConfig.method === "superserie_pha" || genConfig.phase === "2") {
@@ -650,10 +759,10 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
         order: orderLabel,
         name: ex.name,
         pattern: slot.pattern,
-        sets: formatted.sets,
-        reps: formatted.reps,
-        rpe: formatted.rpe,
-        rest: formatted.rest,
+        sets: setsForThisRow,
+        reps: repsForThisRow,
+        rpe: genConfig.customRpe || "80%",
+        rest: genConfig.customRest || "90s",
         w1: "", w2: "", w3: "", w4: ""
       };
     });
@@ -664,7 +773,7 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
         order: "D",
         name: carryEx.name,
         pattern: "TRANSPORTE",
-        sets: 2,
+        sets: 3,
         reps: "20-30m / 30s",
         rpe: "Postura / Pesado",
         rest: "60s",
@@ -672,6 +781,7 @@ async function generateAutomaticRoutine(autoSaveToCloud) {
       });
     }
 
+    // 4. VUELTA A LA CALMA (1 a 2 series suaves)
     const coolEx = pickSmartExercise({ block: "cool", pattern: "MOVILIDAD", categories, level: genConfig.level }, usedIdsCool);
     const coolRows = [
       { order: "1", name: coolEx.name, pattern: "MOVILIDAD", sets: 1, reps: "2-3 min", rpe: "Relajacion / 90-90", rest: "0s", w1: "", w2: "", w3: "", w4: "" }

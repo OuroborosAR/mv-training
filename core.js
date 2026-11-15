@@ -1,5 +1,5 @@
 // =========================================================================
-// CORE.JS: ESTADO GLOBAL, CONSTANTES, FUERZA BASE 1RM Y MOTOR POR ELEMENTO
+// CORE.JS: ESTADO GLOBAL, MOTOR 1RM Y POPUP DE EXPLICACIÓN EN GOOGLE SHEETS
 // =========================================================================
 
 const URL_GOOGLE_SHEET_FIJA = "https://script.google.com/macros/s/AKfycbyUW5XWuSn7u99gfiZRwj1DLOtC6Pt6XaqWaPT3QGGI8lpSj9dm3-kPBPkIMUg6N-sU/exec";
@@ -60,6 +60,19 @@ const BLOCK_DEFINITIONS = [
   { key: "str",  cssClass: "block-str",  title: "3. Bloque Principal de Fuerza", defaultPattern: "RODILLA" },
   { key: "cool", cssClass: "block-cool", title: "4. Vuelta a la Calma", defaultPattern: "MOVILIDAD" }
 ];
+
+const DEFAULT_PATTERN_CUES = {
+  RODILLA: "Mantener planta del pie apoyada completa, rodillas alineadas con la punta del pie y tronco estable.",
+  CADERA: "Iniciar el movimiento llevando la cadera hacia atrás (bisagra), columna neutra y carga próxima al centro de masa.",
+  EMPUJE_H: "Retraer y deprimir escápulas contra el apoyo, codos a ~45° del tronco y control en la fase excéntrica.",
+  EMPUJE_V: "Glúteos y zona media activos para evitar hiperextensión lumbar; empujar alineando la carga sobre los hombros.",
+  TRACCION_H: "Iniciar con retracción escapular y traccionar con el codo hacia la cadera manteniendo el cuello relajado.",
+  TRACCION_V: "Deprimir los hombros lejos de las orejas antes de traccionar hacia el pecho con control.",
+  TRANSPORTE: "Postura erguida, mirada al frente y pelvis nivelada evitando inclinación lateral o rotación.",
+  CORE: "Mantener rigidez abdominal y exhalación activa impidiendo cualquier movimiento compensatorio en la zona lumbar.",
+  PLIOMETRIA: "Extensión explosiva de triple articulación en el despegue y aterrizaje suave absorbiendo con cadera y rodillas.",
+  MOVILIDAD: "Ejecución controlada en rango articular completo sin dolor, acompañando cada repetición con la respiración."
+};
 
 let appState = {
   sheetUrl: URL_GOOGLE_SHEET_FIJA,
@@ -157,11 +170,42 @@ function inferExerciseTier(ex) {
   return "INTEGRADO";
 }
 
+// Extrae la explicación guardada en Google Sheets dentro de [DESC:...]
+function extractExerciseDescription(ex) {
+  if (!ex) return "";
+  if (ex.desc) return String(ex.desc).trim();
+  const match = String(ex.author || "").match(/\[DESC:([^\]]+)\]/i);
+  return match ? match[1].trim() : "";
+}
+
+// Codifica Momento, Rol y Explicación dentro del campo author para guardarlo en Google Sheets
+function buildEncodedExerciseAuthor(baseAuthor, block, tier, descText) {
+  const cleanAuthor = String(baseAuthor || "Propio")
+    .replace(/\s*\[BLQ:[^\]]+\]\s*/gi, "")
+    .replace(/\s*\[DESC:[^\]]+\]\s*/gi, "")
+    .replace(/\s*\[IMG:[^\]]+\]\s*/gi, "")
+    .replace(/\s*\[VID:[^\]]+\]\s*/gi, "")
+    .trim() || "Propio";
+
+  const safeBlock = MOMENT_CONFIG[block] ? block : "str";
+  const safeTier = TIER_CONFIG[tier] ? tier : "BASE";
+  const safeDesc = String(descText || "").replace(/[\[\]]/g, "").trim();
+  const descTag = safeDesc ? ` [DESC:${safeDesc}]` : "";
+
+  return `[BLQ:${safeBlock}|ROL:${safeTier}]${descTag} ${cleanAuthor}`;
+}
+
 function getExerciseMeta(ex) {
   const block = inferExerciseMoment(ex);
   const tier = inferExerciseTier(ex);
-  const cleanAuthor = String(ex?.author || "Propio").replace(/\s*\[BLQ:[^\]]+\]\s*/gi, "").trim() || "Propio";
-  return { block, tier, cleanAuthor };
+  const desc = extractExerciseDescription(ex);
+  const cleanAuthor = String(ex?.author || "Propio")
+    .replace(/\s*\[BLQ:[^\]]+\]\s*/gi, "")
+    .replace(/\s*\[DESC:[^\]]+\]\s*/gi, "")
+    .replace(/\s*\[IMG:[^\]]+\]\s*/gi, "")
+    .replace(/\s*\[VID:[^\]]+\]\s*/gi, "")
+    .trim() || "Propio";
+  return { block, tier, desc, cleanAuthor };
 }
 
 function enrichExercisesMetadata() {
@@ -169,7 +213,139 @@ function enrichExercisesMetadata() {
   appState.exercises.forEach(ex => {
     ex.block = inferExerciseMoment(ex);
     ex.tier = inferExerciseTier(ex);
+    ex.desc = extractExerciseDescription(ex);
   });
+}
+
+// =========================================================================
+// BOTÓN PLAY (▶) Y POPUP DE EXPLICACIÓN TÉCNICA GUARDADA EN GOOGLE SHEETS
+// =========================================================================
+
+function buildExerciseThumbnailBtn(exName, patKey) {
+  const cleanName = String(exName || "").trim();
+  const pat = String(patKey || "RODILLA").toUpperCase();
+  const foundEx = (appState.exercises || []).find(
+    e => String(e.name || "").trim().toLowerCase() === cleanName.toLowerCase()
+  );
+  const hasCustomDesc = Boolean(foundEx && extractExerciseDescription(foundEx));
+
+  return `<button type="button" class="ex-info-btn ${hasCustomDesc ? 'has-custom-desc' : ''} no-print" title="Ver explicación técnica del ejercicio" onclick="openExerciseDemoModal('${escapeHtml(cleanName || "Ejercicio")}', '${escapeHtml(pat)}')">▶</button>`;
+}
+
+function closeExerciseDemoModal() {
+  const modal = document.getElementById("exercise-demo-modal");
+  if (modal) modal.classList.add("section-collapsed");
+}
+
+function openExerciseDemoModal(exName, patKey) {
+  let modal = document.getElementById("exercise-demo-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "exercise-demo-modal";
+    modal.className = "auth-overlay no-print";
+    modal.style.zIndex = "9800";
+    document.body.appendChild(modal);
+  }
+
+  const cleanName = String(exName || "").trim();
+  const foundEx = (appState.exercises || []).find(
+    e => String(e.name || "").trim().toLowerCase() === cleanName.toLowerCase()
+  );
+  const pat = patKey || (foundEx ? foundEx.pattern : "RODILLA");
+  const patLabel = PATTERN_CONFIG[pat]?.label || pat;
+  const equipLabel = foundEx?.equip || "Según prescripción";
+  const savedDesc = foundEx ? extractExerciseDescription(foundEx) : "";
+  const explanationToShow = savedDesc || DEFAULT_PATTERN_CUES[pat] || DEFAULT_PATTERN_CUES.RODILLA;
+
+  const est1RM = typeof estimateExercise1RM === "function" ? estimateExercise1RM({ name: cleanName, pattern: pat }) : null;
+  const phaseObj = NASM_PHASES[appState.meta.nasmPhase || "3"] || NASM_PHASES["3"];
+  const suggestedKg = (est1RM && est1RM > 0) ? Math.round(est1RM * phaseObj.pct) : null;
+  const isCoach = typeof currentSession !== "undefined" && currentSession.role === "coach";
+
+  modal.innerHTML = `
+    <div class="auth-card" style="max-width:460px; text-align:left;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:12px;">
+        <div>
+          <span class="tag-pattern">${escapeHtml(patLabel)}</span>
+          <h3 style="font-size:1.02rem; color:var(--text-main); margin-top:4px;">${escapeHtml(cleanName || "Detalle del Ejercicio")}</h3>
+        </div>
+        <button class="btn" style="padding:4px 9px;" onclick="closeExerciseDemoModal()">X</button>
+      </div>
+
+      <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:8px 11px; font-size:0.78rem; margin-bottom:12px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+        <span><strong>Elemento:</strong> ${escapeHtml(equipLabel)}</span>
+        ${suggestedKg ? `<span><strong>Carga Ref. (${phaseObj.def.rpe}):</strong> <strong style="color:var(--accent);">~${suggestedKg} kg</strong></span>` : ""}
+      </div>
+
+      <div style="background:var(--bg-input); border-left:3px solid var(--accent); padding:10px 12px; border-radius:5px; font-size:0.82rem; margin-bottom:12px;">
+        <div style="font-size:0.72rem; text-transform:uppercase; color:var(--accent); font-weight:700; margin-bottom:6px;">
+          Explicación Técnica y Pautas de Ejecución
+        </div>
+        ${isCoach ? `
+          <textarea id="modal-ex-desc-input" rows="4" class="input-full" style="resize:vertical; line-height:1.45;" placeholder="Escribí acá la explicación técnica para tus alumnos...">${escapeHtml(explanationToShow)}</textarea>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; gap:8px;">
+            <span style="font-size:0.7rem; color:var(--text-muted);">${savedDesc ? "Guardada en Google Sheets" : "Sugerencia por patrón (Tocá Guardar para fijarla en Excel)"}</span>
+            <button type="button" class="btn btn-success" style="font-size:0.74rem; padding:5px 10px;" onclick="saveExplanationFromModal('${escapeHtml(cleanName)}', '${escapeHtml(pat)}')">
+              Guardar Explicación en Excel
+            </button>
+          </div>
+        ` : `
+          <div style="color:var(--text-main); line-height:1.5; white-space:pre-line;">${escapeHtml(explanationToShow)}</div>
+        `}
+      </div>
+
+      <button class="btn" style="width:100%; justify-content:center;" onclick="closeExerciseDemoModal()">
+        Cerrar
+      </button>
+    </div>
+  `;
+  modal.classList.remove("section-collapsed");
+}
+
+// Guarda la explicación editada en el popup directamente en la pestaña Ejercicios de Google Sheets
+async function saveExplanationFromModal(exName, patKey) {
+  const inputEl = document.getElementById("modal-ex-desc-input");
+  if (!inputEl) return;
+  const newDesc = inputEl.value.trim();
+  const cleanName = String(exName || "").trim();
+  if (!cleanName) return;
+
+  let target = (appState.exercises || []).find(
+    e => String(e.name || "").trim().toLowerCase() === cleanName.toLowerCase()
+  );
+
+  if (target) {
+    const meta = getExerciseMeta(target);
+    target.desc = newDesc;
+    target.author = buildEncodedExerciseAuthor(meta.cleanAuthor, meta.block, meta.tier, newDesc);
+
+    saveToLocalStorage();
+    renderAll();
+    if (typeof sendToGoogleSheet === "function") {
+      await sendToGoogleSheet({ action: "deleteExercise", id: target.id });
+      await sendToGoogleSheet({ action: "addExercise", exercise: target });
+    }
+  } else {
+    const block = PATTERN_CONFIG[patKey]?.defaultBlock || "str";
+    const tier = inferExerciseTier({ name: cleanName, pattern: patKey });
+    const baseAuthor = appState.meta.coachName || "Propio";
+    target = {
+      id: "ex_" + Date.now(),
+      name: cleanName,
+      pattern: patKey || "RODILLA",
+      equip: "Libre",
+      desc: newDesc,
+      author: buildEncodedExerciseAuthor(baseAuthor, block, tier, newDesc)
+    };
+    appState.exercises.unshift(target);
+    saveToLocalStorage();
+    renderAll();
+    if (typeof sendToGoogleSheet === "function") {
+      await sendToGoogleSheet({ action: "addExercise", exercise: target });
+    }
+  }
+
+  closeExerciseDemoModal();
 }
 
 // =========================================================================
@@ -269,7 +445,6 @@ function onManualStrengthInput() {
   saveStrengthFieldsToMeta();
 }
 
-// Busca el elemento registrado del ejercicio en la Biblioteca (Barra, Mancuerna, Polea, Máquina, etc.)
 function findExerciseEquipmentText(exerciseName) {
   const clean = String(exerciseName || "").trim().toLowerCase();
   if (!clean || !Array.isArray(appState.exercises)) return "";
@@ -277,7 +452,6 @@ function findExerciseEquipmentText(exerciseName) {
   return found ? String(found.equip || "").toLowerCase() : "";
 }
 
-// Calcula el 1RM específico del ejercicio adaptando el % según el elemento y la biomecánica (Boyle, EAC, Milo, NASM)
 function estimateExercise1RM(row, customRM = null) {
   const rm = customRM || appState.meta.baseRM || { squat: 45, deadlift: 55, bench: 35, pulldown: 40 };
   const name = String(row.name || "").toLowerCase();
@@ -285,12 +459,10 @@ function estimateExercise1RM(row, customRM = null) {
   const fullText = `${name} ${equip}`;
   const pat = String(row.pattern || "RODILLA").toUpperCase();
 
-  // 1. Excluir ejercicios puramente de peso corporal, bandas elásticas, movilidad o saltos sin carga
-  if (/air squat|sentadilla libre|push-up|flexiones|plancha|side plank|bird-dog|dead bug|bicho muerto|curl-up|ab wheel|rueda abdominal|smr|foam|rodillo|gato-vaca|tube walking|mini band|superband|tiraband|banda elástica|banda elastica|estiramiento|respiraci|box jump|salto al caj|salto en largo|drop jump|depth jump|hop|bound|skip|trx|anillas|dominadas exc|pistol|handstand|sissy/i.test(fullText) && !/lastre|lastrad|mancuerna|barra|kettlebell|disco/i.test(fullText)) {
+  if (/air squat|sentadilla libre|push-up|flexiones|plancha|side plank|bird-dog|dead bug|bicho muerto|curl-up|ab wheel|rueda abdominal|rollout|ab dolly|smr|foam|rodillo|gato-vaca|tube walking|mini band|superband|tiraband|banda elástica|banda elastica|estiramiento|respiraci|box jump|salto al caj|salto en largo|drop jump|depth jump|hop|bound|skip|trx|anillas|dominadas exc|pistol|handstand|sissy/i.test(fullText) && !/lastre|lastrad|mancuerna|barra|kettlebell|disco/i.test(fullText)) {
     return null;
   }
 
-  // Detectores de elemento
   const isLegPress = /prensa 45|prensa de piernas|leg press|prensa inclinada|prensa horizontal/i.test(fullText);
   const isHackOrPendulum = /hack|péndulo|pendulo|belt squat/i.test(fullText);
   const isSmith = /multipower|smith/i.test(fullText);
@@ -301,64 +473,60 @@ function estimateExercise1RM(row, customRM = null) {
   const isLandmine = /landmine|barra t|remo t/i.test(fullText);
   const isSandbagOrClub = /sandbag|corebag|bolsa|clava|macebell|atlas|stone/i.test(fullText);
   const isMedBall = /med ball|medicine ball|balón medicinal|balon medicinal|pelota/i.test(fullText);
-  const isUnilateral = /búlgara|bulgara|split squat|estocada|lunge|step-up|subida al caj|1 pierna|una pierna|unipodal|1 brazo|un brazo|1 mano|una mano|serrucho|medio arrodillado|half-kneeling|maleta|suitcase|waiter/i.test(fullText);
+  const isUnilateral = /búlgara|bulgara|split squat|estocada|zancada|lunge|step-up|subida al caj|1 pierna|una pierna|una sola pierna|unipodal|1 brazo|un brazo|un solo brazo|1 mano|una mano|serrucho|medio arrodillado|half-kneeling|maleta|suitcase|waiter/i.test(fullText);
 
-  // 2. Lanzamientos de Medicine Ball / Pliometría cargada (NASM: ~10% del 1RM base)
   if (isMedBall || pat === "PLIOMETRIA") {
     return Math.max(3, rm.bench * 0.12);
   }
 
-  // 3. Cálculo por Patrón de Movimiento y Elemento
   if (pat === "RODILLA") {
     const base = rm.squat;
-    if (isLegPress) return base * 2.00;                         // Prensa 45°: ~200% de la Sentadilla libre
-    if (isHackOrPendulum) return base * 1.30;                   // Hack / Belt Squat: ~130%
+    if (isLegPress) return base * 2.00;
+    if (isHackOrPendulum) return base * 1.30;
     if (/sillón|sillon|extensión de cuádriceps|leg extension/i.test(fullText)) {
-      return isUnilateral ? base * 0.24 : base * 0.48;          // Sillón de cuádriceps: ~48% bilateral / 24% unipodal
+      return isUnilateral ? base * 0.24 : base * 0.48;
     }
     if (isSmith) return isUnilateral ? base * 0.70 : base * 1.08;
     if (/frontal|front squat/i.test(fullText) && !isKettlebell && !isDumbbell) {
-      return base * 0.75;                                       // EAC Weightlifting: Front Squat = 70-80% de Back Squat
+      return base * 0.75;
     }
-    if (/zercher/i.test(fullText)) return base * 0.70;          // EAC Weightlifting: Zercher Squat
-    if (/goblet|copa/i.test(fullText)) return base * 0.42;      // Milo: Goblet Squat con 1 KB o 1 Mancuerna al pecho
+    if (/zercher/i.test(fullText)) return base * 0.70;
+    if (/goblet|copa/i.test(fullText)) return base * 0.42;
     if (isUnilateral) {
-      // Boyle / Dan John: Sentadilla Split / Búlgara con mancuernas (~32% de Sentadilla por mano) vs con Barra (65%)
       if (isDumbbell || isKettlebell) return base * 0.32;
       if (isSandbagOrClub || isLandmine) return base * 0.50;
       return base * 0.65;
     }
-    if (isDumbbell || isKettlebell) return base * 0.36;         // Sentadilla con 2 mancuernas o 2 KB en rack (peso c/u)
+    if (isDumbbell || isKettlebell) return base * 0.36;
     if (isSandbagOrClub) return base * 0.55;
     if (isLandmine) return base * 0.60;
-    return base * 1.00;                                         // Sentadilla Trasera con Barra (100%)
+    return base * 1.00;
   }
 
   if (pat === "CADERA") {
     const base = rm.deadlift;
     if (/hip thrust/i.test(fullText)) {
-      return (isDumbbell || isKettlebell) ? base * 0.45 : base * 1.15; // Hip Thrust con barra/máquina: 115%
+      return (isDumbbell || isKettlebell) ? base * 0.45 : base * 1.15;
     }
     if (/hexagonal|trap bar|rack pull|bloques/i.test(fullText)) return base * 1.12;
     if (/cargada|clean/i.test(fullText)) {
-      // Dan John / Boyle: Cargada con barra = 100% Press Banca (~80% Sentadilla)
       return (isDumbbell || isKettlebell) ? rm.bench * 0.38 : rm.bench * 1.00;
     }
     if (/arrancada|snatch/i.test(fullText)) {
       return (isDumbbell || isKettlebell) ? rm.bench * 0.30 : base * 0.55;
     }
     if (/swing/i.test(fullText)) {
-      return isUnilateral ? base * 0.34 : base * 0.42;          // Milo: Swing con Kettlebell (peso único)
+      return isUnilateral ? base * 0.34 : base * 0.42;
     }
     if (/camilla|sillón|leg curl|curl femoral/i.test(fullText)) {
-      return isUnilateral ? base * 0.17 : base * 0.34;          // Camilla isquiotibiales (máquina)
+      return isUnilateral ? base * 0.17 : base * 0.34;
     }
     if (isPulley || /pull-through/i.test(fullText)) return base * 0.45;
     if (/buenos días|buenos dias|good morning/i.test(fullText)) return base * 0.50;
     if (/rumano|rdl|piernas rígidas|piernas semirrígidas/i.test(fullText)) {
       if (isUnilateral) return (isDumbbell || isKettlebell) ? base * 0.25 : base * 0.50;
-      if (isDumbbell || isKettlebell) return base * 0.32;       // RDL con Mancuernas (peso por mano)
-      return base * 0.75;                                       // RDL con Barra: 75% del Peso Muerto
+      if (isDumbbell || isKettlebell) return base * 0.32;
+      return base * 0.75;
     }
     if (isUnilateral) {
       return (isDumbbell || isKettlebell) ? base * 0.25 : base * 0.50;
@@ -366,47 +534,46 @@ function estimateExercise1RM(row, customRM = null) {
     if (/puente de glúteos|floor bridge/i.test(fullText)) return base * 0.55;
     if (isDumbbell || isKettlebell) return base * 0.35;
     if (isSandbagOrClub) return base * 0.60;
-    return base * 1.00;                                         // Peso Muerto Convencional / Sumo con Barra (100%)
+    return base * 1.00;
   }
 
   if (pat === "EMPUJE_H") {
     const base = rm.bench;
     if (/apertura|fly|cruce en polea|cruces/i.test(fullText)) {
-      return base * 0.22;                                       // Milo (Palanca larga): Aperturas / Cruces en polea (por mano)
+      return base * 0.22;
     }
-    if (isMachine || isSmith) return base * 1.10;               // Chest Press en Máquina / Multipower: 110%
+    if (isMachine || isSmith) return base * 1.10;
     if (/inclinad/i.test(fullText)) {
-      return (isDumbbell || isKettlebell) ? base * 0.36 : base * 0.82; // Inclinado: 82% barra / 36% por mancuerna
+      return (isDumbbell || isKettlebell) ? base * 0.36 : base * 0.82;
     }
     if (isPulley) return isUnilateral ? base * 0.32 : base * 0.60;
     if (isLandmine) return base * 0.55;
     if (isDumbbell || isKettlebell) {
-      return isUnilateral ? base * 0.40 : base * 0.42;          // Press Plano / Floor Press con Mancuernas o KB (peso por mano)
+      return isUnilateral ? base * 0.40 : base * 0.42;
     }
-    return base * 1.00;                                         // Press de Banca Plano con Barra (100%)
+    return base * 1.00;
   }
 
   if (pat === "EMPUJE_V") {
     const base = rm.bench;
     if (/vuelo|elevación lateral|elevacion lateral|scaption|plano escapular|frontal/i.test(fullText)) {
-      return base * 0.14;                                       // Milo (Palanca larga): Vuelos laterales / Scaption (por mano)
+      return base * 0.14;
     }
     if (/push press|jerk|segundo tiempo/i.test(fullText)) {
-      // Dan John / Milo: Push Press / Jerk mueve ~80% de la Banca con barra o ~35% por mancuerna/KB
       return (isDumbbell || isKettlebell) ? base * 0.35 : base * 0.80;
     }
     if (/thruster|squat a press/i.test(fullText)) {
       return (isDumbbell || isKettlebell) ? base * 0.30 : base * 0.60;
     }
     if (/bottom-up|sots|windmill|molino/i.test(fullText)) {
-      return base * 0.20;                                       // Milo: Estabilidad extrema de hombro con KB
+      return base * 0.20;
     }
-    if (isMachine || isSmith) return base * 0.75;               // Shoulder Press en máquina guiada: 75% de Banca
+    if (isMachine || isSmith) return base * 0.75;
     if (isLandmine) return isUnilateral ? base * 0.38 : base * 0.52;
     if (isDumbbell || isKettlebell || isUnilateral) {
-      return base * 0.28;                                       // Milo: Press estricto con 1 o 2 Mancuernas / KB (peso por mano)
+      return base * 0.28;
     }
-    return base * 0.65;                                         // Press Militar Estricto con Barra: 65% de Banca
+    return base * 0.65;
   }
 
   if (pat === "TRACCION_V") {
@@ -414,40 +581,39 @@ function estimateExercise1RM(row, customRM = null) {
     if (/pull-over|pullover|brazos rectos/i.test(fullText)) return base * 0.42;
     if (isMachine) return base * 1.08;
     if (/dominada|chin-up|pull-up/i.test(fullText)) {
-      return /lastre|lastrad/i.test(fullText) ? base * 0.25 : null; // Dominadas libres = Peso corporal
+      return /lastre|lastrad/i.test(fullText) ? base * 0.25 : null;
     }
-    if (isUnilateral && isPulley) return base * 0.48;           // Jalón unilateral en polea
-    return base * 1.00;                                         // Dorsalera / Jalón al pecho en polea (100%)
+    if (isUnilateral && isPulley) return base * 0.48;
+    return base * 1.00;
   }
 
   if (pat === "TRACCION_H") {
     const base = rm.pulldown;
     if (/face pull|vuelo posterior|pájaro|pajaro|y-w|pull-apart|rotación externa/i.test(fullText)) {
-      return base * 0.24;                                       // Tracción escapular / analítica en polea o mancuernas
+      return base * 0.24;
     }
-    if (isMachine) return base * 1.10;                          // Remo en máquina Hammer / palanca: 110%
-    if (isPulley) return isUnilateral ? base * 0.46 : base * 0.95; // Remo sentado en polea baja: 95%
+    if (isMachine) return base * 1.10;
+    if (isPulley) return isUnilateral ? base * 0.46 : base * 0.95;
     if (isLandmine) return isUnilateral ? base * 0.48 : base * 0.85;
     if (isDumbbell || isKettlebell || isUnilateral) {
-      return isUnilateral ? base * 0.45 : base * 0.38;          // Remo serrucho/gorila 1 brazo (45%) vs 2 mancuernas (38% c/u)
+      return isUnilateral ? base * 0.45 : base * 0.38;
     }
-    return base * 0.95;                                         // Remo con Barra (Pendlay / 90° / Seal Row): 95% de Dorsalera
+    return base * 0.95;
   }
 
   if (pat === "TRANSPORTE") {
-    // Milo: Caminata del Granjero (pesada por mano), Maleta (unilateral) y Mesero (Waiter overhead)
     if (/mesero|waiter|overhead/i.test(fullText)) return rm.bench * 0.28;
     if (/maleta|suitcase/i.test(fullText)) return rm.deadlift * 0.35;
     if (/zercher|abrazo|bear hug|sandbag/i.test(fullText)) return rm.deadlift * 0.60;
-    return rm.deadlift * 0.42;                                  // Granjero (peso por cada mancuerna/KB)
+    return rm.deadlift * 0.42;
   }
 
   if (pat === "CORE") {
-    if (/turkish|levantada turca|tgu/i.test(fullText)) {
-      return rm.bench * 0.35;                                   // Milo: TGU (~1.25x del Press KB unilateral)
+    if (/turkish|levantada turca|levantamiento turco|tgu/i.test(fullText)) {
+      return rm.bench * 0.35;
     }
     if (/windmill|molino/i.test(fullText)) return rm.bench * 0.25;
-    if (/woodchop|lift & chop|pallof|rotación en polea/i.test(fullText)) return rm.pulldown * 0.30;
+    if (/leñador|lenador|woodchop|lift & chop|pallof|rotación en polea/i.test(fullText)) return rm.pulldown * 0.30;
     return null;
   }
 
@@ -460,7 +626,6 @@ function roundToGymStep(val, step) {
   return Number(rounded.toFixed(2));
 }
 
-// Calcula y rellena los pesos de toda la rutina activa usando los 4 básicos, el elemento y el % de la Fase OPT
 function applyBaseStrengthToRoutine(includeProgression = true, customRM = null) {
   if (!customRM) saveStrengthFieldsToMeta();
   const phaseKey = appState.meta.nasmPhase || "3";
@@ -475,7 +640,6 @@ function applyBaseStrengthToRoutine(includeProgression = true, customRM = null) 
         const est1RM = estimateExercise1RM(r, customRM);
         if (!est1RM || est1RM <= 0) return;
 
-        // En Fase 5 (Potencia), los ejercicios explosivos o balísticos trabajan al 35-45% o con carga moderada (NASM)
         let targetIntensity = (bKey === "core") ? 0.65 : phaseObj.pct;
         if (phaseKey === "5" && /velocidad|speed|salto|jump|explosiv|balístic/i.test(r.name)) {
           targetIntensity = 0.40;

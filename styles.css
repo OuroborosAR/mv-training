@@ -38,7 +38,6 @@ body {
   padding-bottom: 85px;
 }
 
-/* ENCABEZADO FIJO SUPERIOR */
 .fixed-header-wrapper {
   position: fixed;
   top: 0;
@@ -123,12 +122,11 @@ select, input, textarea {
   font-size: 0.85rem;
 }
 
-select:focus, input:focus {
+select:focus, input:focus, textarea:focus {
   outline: none;
   border-color: var(--accent);
 }
 
-/* BARRA DE CONEXION GOOGLE SHEETS */
 .cloud-bar {
   background: #0b1120;
   border-bottom: 1px solid var(--border);
@@ -141,7 +139,6 @@ select:focus, input:focus {
   font-size: 0.78rem;
 }
 
-/* PANEL DE SERIES SEMANALES */
 .weekly-series-bar {
   background: rgba(15,23,42,0.98);
   backdrop-filter: blur(8px);
@@ -200,7 +197,6 @@ select:focus, input:focus {
   transition: width 0.25s ease;
 }
 
-/* BARRA FLOTANTE INFERIOR (SOLO SERIES SEMANALES Y BIBLIOTECA) */
 .floating-controls {
   position: fixed;
   bottom: 14px;
@@ -224,12 +220,10 @@ select:focus, input:focus {
   flex-shrink: 0;
 }
 
-/* Ocultamos permanentemente el boton de Panel Superior en la barra flotante */
 #btn-float-top {
   display: none !important;
 }
 
-/* CONTENEDOR PRINCIPAL */
 .main-container {
   max-width: 1440px;
   margin: 12px auto;
@@ -327,7 +321,7 @@ select:focus, input:focus {
   color: var(--text-muted);
 }
 
-/* GRILLA 2x2 COMPACTA PARA FUERZA BASE 1RM (SIN DESBORDE) */
+/* GRILLA 2x2 COMPACTA PARA FUERZA BASE 1RM */
 .rm-base-box {
   background: rgba(56, 189, 248, 0.04);
   border: 1px solid var(--border);
@@ -383,6 +377,35 @@ select:focus, input:focus {
   border: 1px solid var(--border);
   border-radius: 4px;
   flex-shrink: 0;
+}
+
+/* BOTÓN PLAY (▶) DE EXPLICACIÓN TÉCNICA */
+.ex-info-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 5px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.ex-info-btn:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.ex-info-btn.has-custom-desc {
+  border-color: var(--series-green);
+  color: var(--series-green);
 }
 
 .control-strip {
@@ -493,13 +516,13 @@ table.plan-table th {
 
 table.plan-table th.col-ex,
 table.plan-table td.col-ex {
-  min-width: 290px;
-  width: 32%;
+  min-width: 300px;
+  width: 33%;
 }
 
 .input-exercise-name {
   width: 100%;
-  min-width: 235px;
+  min-width: 220px;
   font-size: 0.9rem;
   padding: 8px 10px;
   font-weight: 500;
@@ -522,7 +545,6 @@ table.plan-table td.week-cell {
 .input-md { width: 76px; text-align: center; padding: 7px 6px; }
 .input-full { width: 100%; }
 
-/* PANEL LATERAL DE BIBLIOTECA */
 .library-drawer {
   position: fixed;
   top: 0;
@@ -616,14 +638,10 @@ table.plan-table td.week-cell {
   margin-right: 4px;
 }
 
-/* CONTENEDOR EXCLUSIVO PARA EL PDF DEL CLIENTE (1 DIA POR HOJA) */
 #print-all-days-container {
   display: none;
 }
 
-/* =========================================================================
-   PANTALLA OSCURECIDA DE CARGA, LOGEO Y PORTAL DEL ALUMNO
-   ========================================================================= */
 .auth-overlay {
   position: fixed;
   inset: 0;
@@ -695,9 +713,6 @@ table.plan-table td.week-cell {
   margin-top: 10px;
 }
 
-/* =========================================================================
-   PESTAÑAS DE MODO ENTRENADOR, GENERADOR AUTOMÁTICO Y BOTÓN ROTAR
-   ========================================================================= */
 .coach-mode-tabs {
   display: flex;
   gap: 8px;
@@ -802,9 +817,6 @@ table.plan-table td.week-cell {
   flex-shrink: 0;
 }
 
-/* =========================================================================
-   AJUSTE PROPORCIONAL PARA CELULARES (SIN SCROLL LATERAL)
-   ========================================================================= */
 .main-container,
 .top-grid,
 .card,
@@ -839,7 +851,6 @@ table.plan-table td.week-cell {
     padding: 10px;
   }
 
-  /* Evita que Notas Internas fuerce 2 columnas anchas en la pantalla del celular */
   .client-form {
     grid-template-columns: 1fr !important;
   }
@@ -848,7 +859,6 @@ table.plan-table td.week-cell {
     grid-column: span 1 !important;
   }
 
-  /* Evita que los selectores e inputs desborden el ancho del telefono */
   select,
   input,
   textarea,
@@ -900,9 +910,6 @@ table.plan-table td.week-cell {
   }
 }
 
-/* =========================================================================
-   REGLAS DE IMPRESION: 1 DIA EXACTO POR HOJA + ENCABEZADO EN TODAS LAS HOJAS
-   ========================================================================= */
 @page {
   size: A4 portrait;
   margin: 7mm 9mm;

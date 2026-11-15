@@ -1,8 +1,7 @@
 // =========================================================================
-// PLANNER.JS: GRILLA DE ENTRENAMIENTO, SERIES SEMANALES, PROGRESION Y PDF
+// PLANNER.JS: GRILLA DE ENTRENAMIENTO CON MINIATURA PLAY Y PROGRESION
 // =========================================================================
 
-// Asigna automáticamente los pesos de Sem 1 a 4 para una fila individual según 1RM, Elemento y Fase
 function populateRowSuggestedWeights(row, bKey) {
   if (!row || !row.name || (bKey !== "str" && bKey !== "core")) return;
   if (typeof estimateExercise1RM !== "function" || typeof roundToGymStep !== "function") return;
@@ -39,18 +38,20 @@ function renderWeeklySeries() {
   });
   const piernas = c.RODILLA + c.CADERA;
   const torso = c.EMPUJE_H + c.EMPUJE_V + c.TRACCION_H + c.TRACCION_V;
+
+  // Escala alineada a 3-4 series por ejercicio (Milo: 8 a 16 series/semana por patrón individual)
   const getCol = (s, macro) => s === 0 ? "#475569" : macro
-    ? (s < 12 ? "var(--series-blue)" : s <= 15 ? "var(--series-green)" : s <= 20 ? "var(--series-yellow)" : "var(--series-red)")
-    : (s <= 6 ? "var(--series-blue)" : s <= 10 ? "var(--series-green)" : "var(--series-yellow)");
+    ? (s < 14 ? "var(--series-blue)" : s <= 26 ? "var(--series-green)" : s <= 32 ? "var(--series-yellow)" : "var(--series-red)")
+    : (s < 8 ? "var(--series-blue)" : s <= 16 ? "var(--series-green)" : s <= 20 ? "var(--series-yellow)" : "var(--series-red)");
 
   const items = [
-    { t: "Tren Inferior", s: piernas, m: 20, macro: true },
-    { t: "Tren Superior", s: torso, m: 20, macro: true },
-    { t: "Rodilla", s: c.RODILLA, m: 12, macro: false },
-    { t: "Cadera", s: c.CADERA, m: 12, macro: false },
-    { t: "Empujes", s: c.EMPUJE_H + c.EMPUJE_V, m: 12, macro: false },
-    { t: "Tracciones", s: c.TRACCION_H + c.TRACCION_V, m: 12, macro: false },
-    { t: "Core / Transporte", s: c.CORE + c.TRANSPORTE, m: 16, macro: false }
+    { t: "Tren Inferior", s: piernas, m: 26, macro: true },
+    { t: "Tren Superior", s: torso, m: 26, macro: true },
+    { t: "Rodilla", s: c.RODILLA, m: 16, macro: false },
+    { t: "Cadera", s: c.CADERA, m: 16, macro: false },
+    { t: "Empujes", s: c.EMPUJE_H + c.EMPUJE_V, m: 16, macro: false },
+    { t: "Tracciones", s: c.TRACCION_H + c.TRACCION_V, m: 16, macro: false },
+    { t: "Core / Transporte", s: c.CORE + c.TRANSPORTE, m: 18, macro: false }
   ];
 
   const container = document.getElementById("weekly-series-container");
@@ -117,7 +118,7 @@ function renderBlocks() {
           <thead>
             <tr>
               <th style="width:52px;">Ord</th>
-              <th class="col-ex">Ejercicio</th>
+              <th class="col-ex">Ejercicio (Explicación ▶)</th>
               <th style="width:165px;">Patron (Interno)</th>
               <th style="width:58px;">Series</th>
               <th style="width:76px;">Reps</th>
@@ -135,7 +136,8 @@ function renderBlocks() {
             rows.map((r, rIdx) => `<tr>
               <td><input class="input-sm" value="${escapeHtml(r.order)}" oninput="updateCell('${b.key}',${rIdx},'order',this.value)"></td>
               <td class="col-ex">
-                <div style="display:flex;gap:4px;align-items:center;">
+                <div style="display:flex;gap:5px;align-items:center;">
+                  ${buildExerciseThumbnailBtn(r.name, r.pattern)}
                   <input class="input-exercise-name" value="${escapeHtml(r.name)}" placeholder="Escribir o editar ejercicio..." oninput="updateCell('${b.key}',${rIdx},'name',this.value)" onchange="onRowExerciseNameCommitted('${b.key}',${rIdx})">
                   <button class="btn btn-icon-action no-print" title="Rotar por otro ejercicio del mismo patrón y calcular peso" onclick="rotateRowExercise('${b.key}',${rIdx})">Rotar</button>
                   <button class="btn btn-icon-action no-print" title="Guardar este nombre en la Biblioteca" onclick="quickSaveRowExercise('${b.key}',${rIdx})">+</button>
@@ -163,8 +165,8 @@ function updateCell(bKey, rIdx, field, val) {
   const row = appState.days[appState.activeDayIndex].blocks[bKey][rIdx];
   row[field] = field === "sets" ? (parseInt(val) || 0) : val;
 
-  if (field === "pattern" && row.name) {
-    populateRowSuggestedWeights(row, bKey);
+  if (field === "pattern") {
+    if (row.name) populateRowSuggestedWeights(row, bKey);
     renderBlocks();
   }
   if (field === "sets" || field === "pattern") {
@@ -173,32 +175,32 @@ function updateCell(bKey, rIdx, field, val) {
   saveToLocalStorage();
 }
 
-// Si el entrenador escribe manualmente un ejercicio y aún no tenía peso cargado, sugiere los kg al salir del campo
 function onRowExerciseNameCommitted(bKey, rIdx) {
   const row = appState.days[appState.activeDayIndex]?.blocks[bKey]?.[rIdx];
-  if (!row || !row.name.trim()) return;
-  if (!row.w1) {
+  if (!row) return;
+  if (row.name.trim() && !row.w1) {
     populateRowSuggestedWeights(row, bKey);
-    saveToLocalStorage();
-    renderBlocks();
   }
+  saveToLocalStorage();
+  renderBlocks();
 }
 
 function addRow(bKey, pat, name = "") {
   const def = NASM_PHASES[appState.meta.nasmPhase || "3"].def;
   const list = appState.days[appState.activeDayIndex].blocks[bKey];
+  const defaultSets = bKey === "str" ? def.sets : (bKey === "cool" ? 1 : 2);
+
   const newRow = {
     order: bKey === "str" ? `B${list.length + 1}` : `${list.length + 1}`,
     name,
     pattern: pat,
-    sets: bKey === "str" ? def.sets : 2,
-    reps: def.reps,
-    rpe: def.rpe,
-    rest: def.rest,
+    sets: defaultSets,
+    reps: bKey === "str" ? def.reps : (bKey === "core" ? "8-12 / 30s" : "8-10"),
+    rpe: bKey === "str" ? def.rpe : "Control",
+    rest: bKey === "str" ? def.rest : "45s",
     w1: "", w2: "", w3: "", w4: ""
   };
 
-  // Si se agrega desde la Biblioteca (viene con nombre), calcula automáticamente los pesos de Sem 1 a 4
   if (name) {
     populateRowSuggestedWeights(newRow, bKey);
   }

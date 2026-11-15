@@ -1,5 +1,5 @@
 // =========================================================================
-// LIBRARY.JS: PANEL LATERAL DE BIBLIOTECA, MOMENTO DE CLASE Y JERARQUÍA
+// LIBRARY.JS: PANEL DE BIBLIOTECA CON EXPLICACIÓN GUARDADA EN GOOGLE SHEETS
 // =========================================================================
 
 let drawerFilterMoment = "ALL";
@@ -33,10 +33,19 @@ function initStaticControls() {
     tierSelect.title = "Jerarquía / prioridad en el bloque principal";
     tierSelect.innerHTML = buildTierOptions("BASE");
 
+    const descInput = document.createElement("textarea");
+    descInput.id = "new-ex-desc";
+    descInput.className = "input-full";
+    descInput.rows = 2;
+    descInput.placeholder = "Explicación técnica / pautas del ejercicio (Se guarda en Google Sheets)...";
+    descInput.style.gridColumn = "span 2";
+    descInput.style.resize = "vertical";
+
     const actionDiv = document.getElementById("btn-save-ex-form")?.parentNode;
     if (actionDiv) {
       gridContainer.insertBefore(blockSelect, actionDiv);
       gridContainer.insertBefore(tierSelect, actionDiv);
+      gridContainer.insertBefore(descInput, actionDiv);
     }
   }
 
@@ -135,16 +144,19 @@ function renderDrawerLibrary() {
     const badgeStyle = tierColors[exTier] || tierColors.BASE;
 
     return `<div class="exercise-item">
-      <div class="ex-info">
-        <h4>${escapeHtml(ex.name)}</h4>
-        <div class="ex-meta" style="display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-top:4px;">
-          <span class="tag-pattern">${cfg.label}</span>
-          <span class="tag-pattern" style="background:rgba(139,92,246,0.18); color:#c4b5fd;">${momentInfo.short}</span>
-          ${exBlock === "str" ? `<span class="tag-pattern" style="background:${badgeStyle}">${tierInfo.short}</span>` : ""}
-          <span>${escapeHtml(ex.equip)}</span>
+      <div style="display:flex; gap:8px; align-items:center; min-width:0;">
+        ${buildExerciseThumbnailBtn(ex.name, ex.pattern)}
+        <div class="ex-info" style="min-width:0;">
+          <h4>${escapeHtml(ex.name)}</h4>
+          <div class="ex-meta" style="display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-top:4px;">
+            <span class="tag-pattern">${cfg.label}</span>
+            <span class="tag-pattern" style="background:rgba(139,92,246,0.18); color:#c4b5fd;">${momentInfo.short}</span>
+            ${exBlock === "str" ? `<span class="tag-pattern" style="background:${badgeStyle}">${tierInfo.short}</span>` : ""}
+            <span>${escapeHtml(ex.equip)}</span>
+          </div>
         </div>
       </div>
-      <div style="display:flex;gap:4px;">
+      <div style="display:flex;gap:4px;flex-shrink:0;">
         <button class="btn btn-primary" style="padding:4px 8px;font-size:0.72rem;" onclick="addExerciseByIdToDay('${escapeHtml(ex.id)}')">Agregar</button>
         <button class="btn" style="padding:4px 7px;font-size:0.72rem;" onclick="startEditExercise('${escapeHtml(ex.id)}')">Editar</button>
         <button class="btn btn-danger" style="padding:4px 7px;font-size:0.72rem;" onclick="deleteExerciseFromCloud('${escapeHtml(ex.id)}')">X</button>
@@ -164,8 +176,10 @@ function startEditExercise(id) {
 
   const blockEl = document.getElementById("new-ex-block");
   const tierEl = document.getElementById("new-ex-tier");
+  const descEl = document.getElementById("new-ex-desc");
   if (blockEl) blockEl.value = inferExerciseMoment(ex);
   if (tierEl) tierEl.value = inferExerciseTier(ex);
+  if (descEl) descEl.value = extractExerciseDescription(ex);
 
   document.getElementById("drawer-form-title").textContent = "Editando Ejercicio";
   document.getElementById("btn-save-ex-form").textContent = "Guardar Cambios";
@@ -182,8 +196,10 @@ function cancelExerciseEdit() {
   document.getElementById("new-ex-equip").value = "";
   const blockEl = document.getElementById("new-ex-block");
   const tierEl = document.getElementById("new-ex-tier");
+  const descEl = document.getElementById("new-ex-desc");
   if (blockEl) blockEl.value = "str";
   if (tierEl) tierEl.value = "BASE";
+  if (descEl) descEl.value = "";
 
   document.getElementById("drawer-form-title").textContent = "Nuevo Ejercicio";
   document.getElementById("btn-save-ex-form").textContent = "Guardar en Biblioteca";
@@ -197,6 +213,7 @@ async function saveExerciseFromDrawerForm() {
   const eqEl = document.getElementById("new-ex-equip");
   const blockEl = document.getElementById("new-ex-block");
   const tierEl = document.getElementById("new-ex-tier");
+  const descEl = document.getElementById("new-ex-desc");
 
   const name = nameEl.value.trim();
   if (!name) {
@@ -207,7 +224,8 @@ async function saveExerciseFromDrawerForm() {
   const chosenBlock = blockEl ? blockEl.value : (PATTERN_CONFIG[patEl.value]?.defaultBlock || "str");
   const chosenTier = tierEl ? tierEl.value : inferExerciseTier({ name, pattern: patEl.value });
   const sheetMoment = MOMENT_CONFIG[chosenBlock]?.sheetVal || "PRINCIPAL";
-  const baseAuthor = (appState.meta.coachName || "Propio").replace(/\s*\[BLQ:[^\]]+\]\s*/gi, "").trim() || "Propio";
+  const descText = descEl ? descEl.value.trim() : "";
+  const encodedAuthor = buildEncodedExerciseAuthor(appState.meta.coachName || "Propio", chosenBlock, chosenTier, descText);
 
   if (editingExerciseId) {
     const target = appState.exercises.find(e => e.id === editingExerciseId);
@@ -216,11 +234,12 @@ async function saveExerciseFromDrawerForm() {
       target.name = name;
       target.pattern = patEl.value;
       target.equip = eqEl.value.trim() || "Libre";
-      target.author = `[BLQ:${chosenBlock}|ROL:${chosenTier}] ${baseAuthor}`;
+      target.author = encodedAuthor;
       target.block = chosenBlock;
       target.momento = sheetMoment;
       target.tier = chosenTier;
       target.jerarquia = chosenTier;
+      target.desc = descText;
 
       appState.days.forEach(d => {
         Object.values(d.blocks).forEach(list => {
@@ -246,15 +265,17 @@ async function saveExerciseFromDrawerForm() {
     name: name,
     pattern: patEl.value,
     equip: eqEl.value.trim() || "Libre",
-    author: `[BLQ:${chosenBlock}|ROL:${chosenTier}] ${baseAuthor}`,
+    author: encodedAuthor,
     block: chosenBlock,
     momento: sheetMoment,
     tier: chosenTier,
-    jerarquia: chosenTier
+    jerarquia: chosenTier,
+    desc: descText
   };
   appState.exercises.unshift(newEx);
   nameEl.value = "";
   eqEl.value = "";
+  if (descEl) descEl.value = "";
   renderDrawerLibrary();
   await sendToGoogleSheet({ action: "addExercise", exercise: newEx });
 }
@@ -287,18 +308,19 @@ async function quickSaveRowExercise(blockKey, rIdx) {
     else if (tierPrompt === "4") chosenTier = "ANALITICO";
   }
 
-  const baseAuthor = (appState.meta.coachName || "Propio").replace(/\s*\[BLQ:[^\]]+\]\s*/gi, "").trim() || "Propio";
   const existing = appState.exercises.find(e => e.name.toLowerCase() === row.name.trim().toLowerCase());
+  const prevDesc = existing ? extractExerciseDescription(existing) : "";
   const exObj = {
     id: existing ? existing.id : ("ex_" + Date.now()),
     name: row.name.trim(),
     pattern: row.pattern,
     equip: equip.trim() || "Libre",
-    author: `[BLQ:${blockKey}|ROL:${chosenTier}] ${baseAuthor}`,
+    author: buildEncodedExerciseAuthor(appState.meta.coachName || "Propio", blockKey, chosenTier, prevDesc),
     block: blockKey,
     momento: momentInfo.sheetVal,
     tier: chosenTier,
-    jerarquia: chosenTier
+    jerarquia: chosenTier,
+    desc: prevDesc
   };
 
   if (existing) {

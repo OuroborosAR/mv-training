@@ -1,12 +1,12 @@
 // =========================================================================
-// AUTH.JS: VALIDACION EN SERVIDOR (GOOGLE SHEETS) SIN CLAVES EN EL FRONTEND
+// AUTH.JS: VALIDACION EN SERVIDOR Y PORTAL DEL ALUMNO CON MINIATURAS SVG
 // =========================================================================
 
 const SESSION_KEY = "planificador_active_session_v2";
 
 let currentSession = {
-  role: null,        // "coach" | "student"
-  coachPin: "",      // Solo se guarda en el dispositivo del entrenador tras validar en Google
+  role: null,
+  coachPin: "",
   clientName: "",
   clientPhone: "",
   activeRoutineId: "",
@@ -74,6 +74,11 @@ function syncCoachPhoneField() {
 }
 
 function saveCoachPhoneToMeta() {
+  if (typeof composeMetadataTagsIntoNotes === "function") {
+    composeMetadataTagsIntoNotes();
+    saveToLocalStorage();
+    return;
+  }
   const phoneInput = document.getElementById("client-phone");
   if (!phoneInput) return;
   const phoneVal = phoneInput.value.trim();
@@ -89,7 +94,6 @@ function saveCoachPhoneToMeta() {
   saveToLocalStorage();
 }
 
-// LOGIN DE ENTRENADOR VALIDADO EN GOOGLE APPS SCRIPT
 async function loginAsCoach(pinOverride) {
   const pinInput = document.getElementById("auth-coach-pin");
   const pinToUse = (pinOverride !== undefined ? pinOverride : (pinInput ? pinInput.value : "")).trim();
@@ -144,7 +148,6 @@ async function loginAsCoach(pinOverride) {
   }
 }
 
-// LOGIN DE ALUMNO VALIDADO EN GOOGLE APPS SCRIPT (SOLO DESCARGA SUS RUTINAS)
 async function loginAsStudent(inputOverride) {
   const studentEl = document.getElementById("auth-student-input");
   const rawInput = (inputOverride !== undefined ? inputOverride : (studentEl ? studentEl.value : "")).trim();
@@ -171,7 +174,6 @@ async function loginAsStudent(inputOverride) {
       return;
     }
 
-    // El alumno solo recibe el catalogo de ejercicios y sus propias rutinas
     appState.exercises = data.exercises || [];
     appState.routines = data.routines || [];
     appState.clients = [];
@@ -266,9 +268,6 @@ function applyRoleView() {
   }
 }
 
-// =========================================================================
-// PORTAL DEL ALUMNO Y GUARDADO DE PESOS EN SEMANAS 1 A 4
-// =========================================================================
 function switchStudentTab(tabName) {
   currentSession.studentTab = tabName;
   renderStudentPortal();
@@ -425,7 +424,7 @@ function renderStudentRoutinesView() {
         ${activeRoutine.goal ? `<span class="tag-pattern" style="font-size:0.75rem; padding:4px 8px;">Objetivo: ${escapeHtml(activeRoutine.goal)}</span>` : ""}
       </div>
       <div class="strip-section">
-        <span id="student-save-status" style="font-size:0.75rem; color:var(--text-muted);">Anota tus cargas en Sem 1 a 4</span>
+        <span id="student-save-status" style="font-size:0.75rem; color:var(--text-muted);">Toca el icono de cada ejercicio para ver la ejecucion</span>
         <button class="btn btn-primary" onclick="syncStudentRoutineWeights('${activeRoutine.id}', true)">Guardar Mis Pesos</button>
         <button class="btn btn-success" onclick="printStudentActiveRoutine()">Descargar PDF</button>
       </div>
@@ -460,7 +459,7 @@ function renderStudentRoutinesView() {
             <thead>
               <tr>
                 <th style="width:50px;">Ord</th>
-                <th class="col-ex">Ejercicio</th>
+                <th class="col-ex">Ejercicio (Toca ▶ para ver Demo)</th>
                 <th style="width:65px; text-align:center;">Series</th>
                 <th style="width:85px; text-align:center;">Reps</th>
                 <th style="width:85px; text-align:center;">Carga/Int</th>
@@ -475,7 +474,12 @@ function renderStudentRoutinesView() {
               ${rows.map((r, rIdx) => `
                 <tr>
                   <td style="text-align:center; font-weight:600;">${escapeHtml(r.order)}</td>
-                  <td class="col-ex"><strong>${escapeHtml(r.name)}</strong></td>
+                  <td class="col-ex">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      ${buildExerciseThumbnailBtn(r.name, r.pattern)}
+                      <strong style="cursor:pointer;" onclick="openExerciseDemoModal('${escapeHtml(r.name)}', '${escapeHtml(r.pattern)}')">${escapeHtml(r.name)}</strong>
+                    </div>
+                  </td>
                   <td style="text-align:center;">${r.sets}</td>
                   <td style="text-align:center;">${escapeHtml(r.reps)}</td>
                   <td style="text-align:center;">${escapeHtml(r.rpe)}</td>
@@ -544,12 +548,15 @@ function renderStudentExercisesList() {
       : filtered.map(ex => {
           const cfg = PATTERN_CONFIG[ex.pattern] || { label: ex.pattern };
           return `
-            <div class="exercise-item">
-              <div class="ex-info">
-                <h4>${escapeHtml(ex.name)}</h4>
-                <div class="ex-meta">
-                  <span class="tag-pattern">${cfg.label}</span>
-                  Elemento: ${escapeHtml(ex.equip || "Libre")}
+            <div class="exercise-item" style="cursor:pointer;" onclick="openExerciseDemoModal('${escapeHtml(ex.name)}', '${escapeHtml(ex.pattern)}')">
+              <div style="display:flex; align-items:center; gap:8px;">
+                ${buildExerciseThumbnailBtn(ex.name, ex.pattern)}
+                <div class="ex-info">
+                  <h4>${escapeHtml(ex.name)}</h4>
+                  <div class="ex-meta">
+                    <span class="tag-pattern">${cfg.label}</span>
+                    Elemento: ${escapeHtml(ex.equip || "Libre")}
+                  </div>
                 </div>
               </div>
             </div>
