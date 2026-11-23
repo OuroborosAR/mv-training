@@ -3,28 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#090d16">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Planificador de Entrenamiento</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="manifest" href="./manifest.json">
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
-
-  <!-- CAPA OSCURECIDA DE CARGA Y LOGEO -->
   <div class="auth-overlay no-print" id="auth-overlay">
     <div class="auth-card" id="auth-loading-box">
       <div class="loader-spinner"></div>
-      <h2 style="font-size:1rem; margin-bottom:6px; text-transform:uppercase;">Cargando Plataforma</h2>
-      <p id="auth-loading-msg" style="font-size:0.82rem; color:var(--text-muted);">
-        Sincronizando datos y preparando sesion...
-      </p>
+      <h2 style="font-size:0.96rem; margin-bottom:6px; text-transform:uppercase;">Cargando Plataforma</h2>
+      <p id="auth-loading-msg" style="font-size:0.82rem; color:var(--text-muted);">Sincronizando datos y preparando sesion...</p>
     </div>
 
     <div class="auth-card section-collapsed" id="auth-login-box">
-      <h2 style="font-size:1.05rem; text-transform:uppercase; letter-spacing:0.5px;">Planificador de Entrenamiento</h2>
+      <h2 style="font-size:1.05rem; text-transform:uppercase; letter-spacing:0.4px;">Planificador de Entrenamiento</h2>
       <p style="font-size:0.78rem; color:var(--text-muted); margin-top:4px;">Selecciona tu perfil para ingresar</p>
 
       <div class="auth-tabs">
@@ -37,9 +36,7 @@
           <label>Numero de Telefono o Nombre Registrado</label>
           <input type="text" id="auth-student-input" placeholder="Ej: 1123456789 o tu nombre completo" onkeydown="if(event.key==='Enter') loginAsStudent()">
         </div>
-        <button class="btn btn-primary" style="justify-content:center; padding:9px;" onclick="loginAsStudent()">
-          Ver Mis Rutinas
-        </button>
+        <button class="btn btn-primary" style="justify-content:center; padding:9px;" onclick="loginAsStudent()">Ver Mis Rutinas</button>
       </div>
 
       <div id="form-auth-coach" class="section-collapsed" style="display:flex; flex-direction:column; gap:10px; text-align:left;">
@@ -47,24 +44,21 @@
           <label>PIN de Entrenador</label>
           <input type="password" id="auth-coach-pin" placeholder="Ingresa tu PIN de acceso" onkeydown="if(event.key==='Enter') loginAsCoach()">
         </div>
-        <button class="btn btn-primary" style="justify-content:center; padding:9px;" onclick="loginAsCoach()">
-          Ingresar al Panel de Edicion
-        </button>
+        <button class="btn btn-primary" style="justify-content:center; padding:9px;" onclick="loginAsCoach()">Ingresar al Panel de Edicion</button>
       </div>
 
       <div id="auth-error-msg" style="color:var(--series-red); font-size:0.78rem; margin-top:10px; min-height:18px;"></div>
     </div>
   </div>
 
-  <!-- MODAL PARA EXPORTAR / CLONAR RUTINA A OTRO CLIENTE -->
   <div class="auth-overlay section-collapsed no-print" id="export-routine-modal" style="z-index:9500;">
     <div class="auth-card" style="max-width:460px; text-align:left;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <h3 style="font-size:0.95rem; color:var(--accent); text-transform:uppercase;">Exportar Rutina a Otro Cliente</h3>
+        <h3 style="font-size:0.92rem; color:var(--accent); text-transform:uppercase;">Exportar Rutina a Otro Cliente</h3>
         <button class="btn" style="padding:3px 8px;" onclick="closeExportRoutineModal()">X</button>
       </div>
       <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">
-        Clona la rutina actual en pantalla para asignarla a otro alumno y personalizarla sin alterar la original.
+        Clona la rutina actual para asignarla a otro alumno sin alterar la original.
       </p>
 
       <div class="form-group" style="margin-bottom:10px;">
@@ -102,7 +96,6 @@
     </div>
   </div>
 
-  <!-- ENCABEZADO SUPERIOR Y SEMÁFORO DEL ENTRENADOR -->
   <div class="fixed-header-wrapper no-print" id="fixed-header-wrapper">
     <div id="top-panel-section">
       <header class="top-navbar">
@@ -113,11 +106,11 @@
         <div class="action-group">
           <button class="btn btn-primary" id="btn-install-pwa" style="display:none;" onclick="installPWA()">Instalar App</button>
           <button class="btn" onclick="toggleCloudBar()">Conexion Excel</button>
-          <button class="btn btn-primary" onclick="toggleLibraryDrawer()">Biblioteca de Ejercicios</button>
-          <button class="btn btn-success" onclick="printFullRoutine()">Descargar PDF Cliente</button>
-          <button class="btn" onclick="exportJSON()">Respaldo JSON</button>
-          <button class="btn btn-danger" onclick="resetPlanner()">Limpiar Planilla</button>
-          <button class="btn" onclick="logoutSession()">Cerrar Sesion</button>
+          <button class="btn btn-primary" onclick="toggleLibraryDrawer()">Biblioteca</button>
+          <button class="btn btn-success" onclick="printFullRoutine()">PDF Cliente</button>
+          <button class="btn" onclick="exportJSON()">JSON</button>
+          <button class="btn btn-danger" onclick="resetPlanner()">Limpiar</button>
+          <button class="btn" onclick="logoutSession()">Salir</button>
         </div>
       </header>
 
@@ -147,35 +140,24 @@
     <button class="btn" id="btn-float-lib" onclick="toggleLibraryDrawer()">Biblioteca</button>
   </div>
 
-  <!-- CONTENEDOR PRINCIPAL DEL ENTRENADOR -->
   <main class="main-container" id="main-container">
-
-    <!-- PESTAÑAS DE NAVEGACIÓN DEL ENTRENADOR -->
     <div class="coach-mode-tabs no-print" id="coach-mode-tabs-bar">
-      <button class="coach-mode-btn active" id="btn-mode-editor" onclick="switchCoachMainTab('editor')">
-        Editor de Planilla Activa
-      </button>
-      <button class="coach-mode-btn" id="btn-mode-generator" onclick="switchCoachMainTab('generator')">
-        Generador Automatico de Rutinas
-      </button>
-      <button class="coach-mode-btn" id="btn-mode-presenciales" onclick="switchCoachMainTab('presenciales')">
-        Clases Presenciales y Cobros
-      </button>
+      <button class="coach-mode-btn active" id="btn-mode-editor" onclick="switchCoachMainTab('editor')">Editor de Planilla</button>
+      <button class="coach-mode-btn" id="btn-mode-generator" onclick="switchCoachMainTab('generator')">Generador Automatico</button>
+      <button class="coach-mode-btn" id="btn-mode-presenciales" onclick="switchCoachMainTab('presenciales')">Presenciales y Cobros</button>
     </div>
 
-    <!-- PESTAÑA 1: GENERADOR AUTOMÁTICO DE RUTINAS -->
     <section id="coach-generator-view" class="section-collapsed no-print"></section>
 
-    <!-- PESTAÑA 2: EDITOR DE PLANILLA Y DATOS DEL CLIENTE -->
     <div id="coach-editor-view">
       <div class="top-grid no-print">
         <div class="card">
           <div class="card-title">
-            <span>Datos del Cliente (Carga Automatica al Seleccionar)</span>
+            <span>Datos del Cliente</span>
           </div>
           <div class="client-bar">
             <div style="display:flex; align-items:center; gap:6px; flex:1; flex-wrap:wrap;">
-              <strong style="font-size:0.75rem; color:var(--text-muted);">Clientes en Excel:</strong>
+              <strong style="font-size:0.75rem; color:var(--text-muted);">Clientes:</strong>
               <select id="client-select" style="flex:1; min-width:190px;" onchange="loadSelectedClient()">
                 <option value="">-- Seleccionar Cliente Guardado --</option>
               </select>
@@ -192,7 +174,7 @@
               <input type="text" id="client-name" placeholder="Nombre del alumno" oninput="saveMeta()">
             </div>
             <div class="form-group">
-              <label>Telefono del Cliente (Login Alumno)</label>
+              <label>Telefono (Login Alumno)</label>
               <input type="tel" id="client-phone" placeholder="Ej: 1123456789" oninput="saveCoachPhoneToMeta()">
             </div>
             <div class="form-group">
@@ -218,17 +200,16 @@
               <input type="date" id="start-date" oninput="saveMeta()">
             </div>
             <div class="form-group" style="grid-column: span 2;">
-              <label>Notas Internas (No salen en el PDF)</label>
+              <label>Notas Internas (No salen en PDF)</label>
               <input type="text" id="client-notes" placeholder="Observaciones para el entrenador..." oninput="saveMeta()">
             </div>
           </div>
         </div>
 
-        <!-- TARJETA DERECHA: FASE NASM + FUERZA BASE 2x2 COMPACTA -->
         <div class="card" style="display:flex; flex-direction:column; justify-content:space-between; gap:10px;">
           <div>
             <div class="card-title" style="margin-bottom:6px;">
-              <span>Fase OPT (Autoajusta Series/Reps/Kg)</span>
+              <span>Fase OPT</span>
               <select id="nasm-phase-select" onchange="onPhaseSelectChange()">
                 <option value="1">Fase 1: Estabilizacion (60%)</option>
                 <option value="2">Fase 2: Fuerza Resistencia (75%)</option>
@@ -242,39 +223,37 @@
 
           <div class="rm-base-box">
             <div class="rm-header-row">
-              <span style="font-size:0.74rem; font-weight:700; color:var(--accent); text-transform:uppercase;">
-                Fuerza Base 1RM (Barra / Polea)
-              </span>
+              <span style="font-size:0.73rem; font-weight:700; color:var(--accent); text-transform:uppercase;">Fuerza Base 1RM</span>
               <select id="rm-preset-select" style="padding:3px 7px; font-size:0.73rem;" onchange="applyStrengthPreset(this.value)">
-                <option value="inicial_a">Estándar Inicial A (Suave)</option>
-                <option value="inicial_b" selected>Estándar Inicial B (General)</option>
-                <option value="intermedio">Nivel Intermedio</option>
-                <option value="avanzado">Nivel Avanzado</option>
+                <option value="inicial_a">Inicial A (Suave)</option>
+                <option value="inicial_b" selected>Inicial B (General)</option>
+                <option value="intermedio">Intermedio</option>
+                <option value="avanzado">Avanzado</option>
                 <option value="custom">Personalizado</option>
               </select>
             </div>
 
             <div class="rm-grid-2x2">
-              <div class="rm-param-item" title="Referencia Dominante de Rodilla (Adapta Prensa 200%, Front Squat 75%, Búlgara Manc. 32% c/u)">
+              <div class="rm-param-item">
                 <label for="rm-squat">Sentadilla (kg)</label>
                 <input type="number" id="rm-squat" value="45" oninput="onManualStrengthInput()">
               </div>
-              <div class="rm-param-item" title="Referencia Dominante de Cadera (Adapta Hip Thrust 115%, RDL 75%, Swing KB 42%)">
+              <div class="rm-param-item">
                 <label for="rm-deadlift">P. Muerto (kg)</label>
                 <input type="number" id="rm-deadlift" value="55" oninput="onManualStrengthInput()">
               </div>
-              <div class="rm-param-item" title="Referencia Empujes (Adapta Máquina 110%, Mancuernas 42% c/u, Militar 65%, Push Press 80%)">
+              <div class="rm-param-item">
                 <label for="rm-bench">P. Pecho (kg)</label>
                 <input type="number" id="rm-bench" value="35" oninput="onManualStrengthInput()">
               </div>
-              <div class="rm-param-item" title="Referencia Tracciones (Adapta Polea/Barra 95-100%, Remo Mancuerna 45% c/u, Face Pull 25%)">
+              <div class="rm-param-item">
                 <label for="rm-pulldown">Dorsalera (kg)</label>
                 <input type="number" id="rm-pulldown" value="40" oninput="onManualStrengthInput()">
               </div>
             </div>
 
             <button class="btn btn-primary" style="width:100%; font-size:0.75rem; padding:6px 10px;" onclick="applyBaseStrengthToRoutine(true)">
-              Calcular y Cargar Pesos según Elemento, Fase y 1RM
+              Calcular Pesos según Fase y 1RM
             </button>
           </div>
         </div>
@@ -282,23 +261,23 @@
 
       <div class="control-strip no-print">
         <div class="strip-section">
-          <strong style="font-size:0.76rem; color:var(--text-muted);">Rutinas Guardadas:</strong>
+          <strong style="font-size:0.76rem; color:var(--text-muted);">Rutinas:</strong>
           <select id="preset-routine-select" style="min-width:230px;" onchange="loadPresetRoutine()">
-            <option value="">-- Seleccionar Rutina (Carga Directa) --</option>
+            <option value="">-- Seleccionar Rutina --</option>
           </select>
-          <button class="btn btn-success" onclick="saveRoutineToCloud()">Guardar Rutina en Excel</button>
-          <button class="btn btn-primary" onclick="openExportRoutineModal()" title="Clonar esta rutina para otro alumno">Exportar a Otro Cliente</button>
+          <button class="btn btn-success" onclick="saveRoutineToCloud()">Guardar Rutina</button>
+          <button class="btn btn-primary" onclick="openExportRoutineModal()">Exportar a Otro Cliente</button>
           <button class="btn btn-danger" onclick="deleteSelectedRoutine()">Eliminar</button>
         </div>
 
         <div class="strip-section">
-          <strong style="font-size:0.76rem; color:var(--text-muted);">Progresion Semanal (Sem 1 a 4):</strong>
+          <strong style="font-size:0.76rem; color:var(--text-muted);">Progresion:</strong>
           <button class="btn btn-warning" onclick="applyProgression(2.5)">+2.5%</button>
           <button class="btn btn-warning" onclick="applyProgression(5)">+5%</button>
           <select id="rounding-select">
-            <option value="0.5">Redondeo 0.5 kg</option>
-            <option value="1" selected>Redondeo 1 kg</option>
-            <option value="2.5">Redondeo 2.5 kg</option>
+            <option value="0.5">0.5 kg</option>
+            <option value="1" selected>1 kg</option>
+            <option value="2.5">2.5 kg</option>
           </select>
         </div>
       </div>
@@ -318,7 +297,6 @@
     </div>
   </main>
 
-  <!-- PORTAL DEL ALUMNO -->
   <section id="student-portal-view" class="section-collapsed no-print">
     <header class="top-navbar" style="position:sticky; top:0; z-index:90;">
       <div class="brand-title">
@@ -326,9 +304,9 @@
         <span class="tag-pattern" id="student-welcome-name" style="font-size:0.78rem; padding:3px 8px;">Alumno</span>
       </div>
       <div class="action-group">
-        <button class="btn btn-primary" id="btn-st-tab-routines" onclick="switchStudentTab('routines')">Mis Rutinas Asignadas</button>
-        <button class="btn" id="btn-st-tab-exercises" onclick="switchStudentTab('exercises')">Lista de Ejercicios</button>
-        <button class="btn btn-danger" onclick="logoutSession()">Cerrar Sesion</button>
+        <button class="btn btn-primary" id="btn-st-tab-routines" onclick="switchStudentTab('routines')">Mis Rutinas</button>
+        <button class="btn" id="btn-st-tab-exercises" onclick="switchStudentTab('exercises')">Ejercicios</button>
+        <button class="btn btn-danger" onclick="logoutSession()">Salir</button>
       </div>
     </header>
 
@@ -339,9 +317,7 @@
 
       <div id="student-exercises-section" class="section-collapsed">
         <div class="card">
-          <div class="card-title">
-            <span>Catalogo de Ejercicios</span>
-          </div>
+          <div class="card-title"><span>Catalogo de Ejercicios</span></div>
           <input type="text" id="student-ex-search" class="input-full" placeholder="Buscar ejercicio por nombre o elemento..." oninput="renderStudentExercisesList()">
           <div class="filter-pills" id="student-ex-pills"></div>
           <div class="student-exercises-grid" id="student-ex-grid"></div>
@@ -350,10 +326,8 @@
     </div>
   </section>
 
-  <!-- CONTENEDOR DE IMPRESIÓN A4 -->
   <div id="print-all-days-container"></div>
 
-  <!-- PANEL LATERAL DE BIBLIOTECA -->
   <aside class="library-drawer no-print" id="library-drawer">
     <div class="drawer-header">
       <div>
@@ -364,20 +338,14 @@
     </div>
     <div class="drawer-body">
       <div class="drawer-add-box" id="drawer-form-box">
-        <div style="font-size:0.76rem; font-weight:700; color:var(--accent); margin-bottom:6px;" id="drawer-form-title">
-          Nuevo Ejercicio
-        </div>
+        <div style="font-size:0.76rem; font-weight:700; color:var(--accent); margin-bottom:6px;" id="drawer-form-title">Nuevo Ejercicio</div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
           <input type="text" id="new-ex-name" class="input-full" placeholder="Nombre del ejercicio..." style="grid-column:span 2;">
           <select id="new-ex-pattern" class="input-full"></select>
           <input type="text" id="new-ex-equip" class="input-full" placeholder="Elemento (KB, Barra...)">
           <div style="grid-column:span 2; display:flex; gap:6px;">
-            <button class="btn btn-success" id="btn-save-ex-form" style="flex:1; justify-content:center;" onclick="saveExerciseFromDrawerForm()">
-              Guardar en Biblioteca
-            </button>
-            <button class="btn" id="btn-cancel-ex-edit" style="display:none;" onclick="cancelExerciseEdit()">
-              Cancelar
-            </button>
+            <button class="btn btn-success" id="btn-save-ex-form" style="flex:1; justify-content:center;" onclick="saveExerciseFromDrawerForm()">Guardar en Biblioteca</button>
+            <button class="btn" id="btn-cancel-ex-edit" style="display:none;" onclick="cancelExerciseEdit()">Cancelar</button>
           </div>
         </div>
       </div>
@@ -388,14 +356,14 @@
     </div>
   </aside>
 
-  <!-- MÓDULOS JAVASCRIPT -->
-  <script src="core.js?v=10"></script>
-  <script src="cloud.js?v=10"></script>
-  <script src="library.js?v=10"></script>
-  <script src="planner.js?v=10"></script>
-  <script src="ui-pwa.js?v=10"></script>
-  <script src="auth.js?v=10"></script>
-  <script src="generator.js?v=10"></script>
-  <script src="presenciales.js?v=10"></script>
+  <script src="core.js?v=11"></script>
+  <script src="cloud.js?v=11"></script>
+  <script src="library.js?v=11"></script>
+  <script src="planner.js?v=11"></script>
+  <script src="ui-pwa.js?v=11"></script>
+  <script src="auth.js?v=11"></script>
+  <script src="generator.js?v=11"></script>
+  <script src="presenciales.js?v=11"></script>
+  <script src="exercise-modal.js?v=11"></script>
 </body>
 </html>

@@ -1,15 +1,9 @@
-// =========================================================================
-// CLOUD.JS: CONEXION GOOGLE SHEETS, CARGA AUTOMATICA Y EXPORTADOR DE RUTINAS
-// =========================================================================
-
 function toggleCloudBar() {
   const wrapper = document.getElementById("fixed-header-wrapper");
   wrapper.classList.remove("scroll-tucked");
   showTopPanel = true;
   document.getElementById("cloud-bar").classList.toggle("section-collapsed");
-  if (typeof updateHeaderLayoutAndSpacer === "function") {
-    updateHeaderLayoutAndSpacer();
-  }
+  if (typeof updateHeaderLayoutAndSpacer === "function") updateHeaderLayoutAndSpacer();
 }
 
 function setCloudStatus(text, color) {
@@ -25,16 +19,13 @@ function saveSheetUrl() {
   saveToLocalStorage();
   if (appState.sheetUrl) {
     document.getElementById("cloud-bar").classList.add("section-collapsed");
-    if (typeof updateHeaderLayoutAndSpacer === "function") {
-      updateHeaderLayoutAndSpacer();
-    }
+    if (typeof updateHeaderLayoutAndSpacer === "function") updateHeaderLayoutAndSpacer();
     syncFromGoogleSheet(true);
   }
 }
 
 async function syncFromGoogleSheet(showAlert) {
-  if (!appState.sheetUrl) return;
-  if (!currentSession || currentSession.role !== "coach" || !currentSession.coachPin) return;
+  if (!appState.sheetUrl || !currentSession || currentSession.role !== "coach" || !currentSession.coachPin) return;
 
   setCloudStatus("Sincronizando...", "var(--accent)");
   try {
@@ -51,21 +42,18 @@ async function syncFromGoogleSheet(showAlert) {
       appState.presencialesGrupos = data.presencialesGrupos || [];
       appState.presencialesRegistros = data.presencialesRegistros || [];
 
-      if (typeof normalizarYDepurarRegistros === "function") {
-        normalizarYDepurarRegistros();
-      }
-
+      if (typeof normalizarYDepurarRegistros === "function") normalizarYDepurarRegistros();
       if (appState.days.length === 0 && appState.routines.length > 0) {
         appState.days = JSON.parse(JSON.stringify(appState.routines[0].days));
       }
+
       saveToLocalStorage();
       populateDropdowns();
       renderAll();
-      if (typeof renderPresencialesModule === "function") {
-        const viewPres = document.getElementById("coach-presenciales-view");
-        if (viewPres && !viewPres.classList.contains("section-collapsed")) {
-          renderPresencialesModule();
-        }
+
+      const viewPres = document.getElementById("coach-presenciales-view");
+      if (typeof renderPresencialesModule === "function" && viewPres && !viewPres.classList.contains("section-collapsed")) {
+        renderPresencialesModule();
       }
       setCloudStatus("Guardado en Excel", "var(--series-green)");
       if (showAlert) alert("Datos sincronizados correctamente con Google Sheets.");
@@ -84,20 +72,16 @@ async function sendToGoogleSheet(payload) {
   if (!appState.sheetUrl) return;
   setCloudStatus("Guardando en Excel...", "var(--accent)");
   try {
-    const securePayload = Object.assign({}, payload, {
-      pin: (currentSession && currentSession.coachPin) ? currentSession.coachPin : ""
-    });
     const res = await fetch(appState.sheetUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(securePayload)
+      body: JSON.stringify(Object.assign({}, payload, { pin: currentSession?.coachPin || "" }))
     });
     const data = await res.json();
-    if (data.status === "ok") {
-      setCloudStatus("Guardado en Excel", "var(--series-green)");
-    } else {
-      setCloudStatus("Error de permisos", "var(--series-red)");
-    }
+    setCloudStatus(
+      data.status === "ok" ? "Guardado en Excel" : "Error de permisos",
+      data.status === "ok" ? "var(--series-green)" : "var(--series-red)"
+    );
   } catch (e) {
     setCloudStatus("Guardado local", "var(--series-yellow)");
   }
@@ -108,7 +92,7 @@ function populateDropdowns(selectedRoutineId = "") {
   if (cliSel) {
     cliSel.innerHTML = `<option value="">-- Seleccionar Cliente (${appState.clients.length}) --</option>` +
       appState.clients.map(c =>
-        `<option value="${c.id}" ${c.id === appState.meta.clientId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
+        `<option value="${c.id}" ${c.id === appState.meta.clientId ? "selected" : ""}>${escapeHtml(c.name)}</option>`
       ).join("");
   }
 
@@ -117,12 +101,11 @@ function populateDropdowns(selectedRoutineId = "") {
     rutSel.innerHTML = `<option value="">-- Seleccionar Rutina (${appState.routines.length}) --</option>` +
       appState.routines.map(r => {
         const cleanName = String(r.name || "").replace(/[^\w\sáéíóúÁÉÍÓÚñÑ.,()-]/g, "").trim();
-        return `<option value="${r.id}" ${r.id === selectedRoutineId ? 'selected' : ''}>${escapeHtml(cleanName)} ${r.clientName ? '(' + escapeHtml(r.clientName) + ')' : ''}</option>`;
+        return `<option value="${r.id}" ${r.id === selectedRoutineId ? "selected" : ""}>${escapeHtml(cleanName)} ${r.clientName ? "(" + escapeHtml(r.clientName) + ")" : ""}</option>`;
       }).join("");
   }
 }
 
-// Al seleccionar un cliente, carga sus datos Y su última rutina asignada automáticamente
 function loadSelectedClient() {
   const id = document.getElementById("client-select").value;
   if (!id) return;
@@ -137,18 +120,17 @@ function loadSelectedClient() {
   appState.meta.nasmPhase = c.phase || "3";
   appState.meta.clientNotes = c.notes || "";
 
-  // Busca automáticamente si el cliente tiene una rutina asociada en la base
   const clientNameLower = String(c.name || "").trim().toLowerCase();
   const matchingRoutine = (appState.routines || []).find(
     r => String(r.clientName || "").trim().toLowerCase() === clientNameLower
   );
 
-  if (matchingRoutine && matchingRoutine.days && matchingRoutine.days.length > 0) {
+  if (matchingRoutine?.days?.length > 0) {
     appState.days = JSON.parse(JSON.stringify(matchingRoutine.days));
     appState.activeDayIndex = 0;
     if (matchingRoutine.phase) appState.meta.nasmPhase = matchingRoutine.phase;
     if (matchingRoutine.split) appState.meta.splitType = matchingRoutine.split;
-    if (matchingRoutine.goal)  appState.meta.clientGoal = matchingRoutine.goal;
+    if (matchingRoutine.goal) appState.meta.clientGoal = matchingRoutine.goal;
     populateDropdowns(matchingRoutine.id);
   } else {
     populateDropdowns("");
@@ -159,7 +141,6 @@ function loadSelectedClient() {
   renderAll();
 }
 
-// Al seleccionar una rutina del desplegable, la carga directamente sin pedir confirmación
 function loadPresetRoutine() {
   const id = document.getElementById("preset-routine-select").value;
   if (!id) return;
@@ -197,17 +178,13 @@ function loadPresetRoutine() {
 
 async function saveClientToCloud() {
   const name = document.getElementById("client-name").value.trim();
-  if (!name) {
-    alert("Ingrese el nombre del cliente.");
-    return;
-  }
-  if (typeof composeMetadataTagsIntoNotes === "function") {
-    composeMetadataTagsIntoNotes();
-  }
+  if (!name) return alert("Ingrese el nombre del cliente.");
+  if (typeof composeMetadataTagsIntoNotes === "function") composeMetadataTagsIntoNotes();
+
   const existing = appState.clients.find(c => c.name.toLowerCase() === name.toLowerCase());
   const clientObj = {
     id: existing ? existing.id : "cli_" + Date.now(),
-    name: name,
+    name,
     coachName: appState.meta.coachName,
     goal: appState.meta.clientGoal,
     split: appState.meta.splitType,
@@ -215,8 +192,10 @@ async function saveClientToCloud() {
     notes: appState.meta.clientNotes,
     updatedAt: new Date().toLocaleDateString()
   };
+
   if (existing) Object.assign(existing, clientObj);
   else appState.clients.unshift(clientObj);
+
   appState.meta.clientId = clientObj.id;
   populateDropdowns(document.getElementById("preset-routine-select")?.value || "");
   await sendToGoogleSheet({ action: "saveClient", client: clientObj });
@@ -235,10 +214,7 @@ async function saveRoutineToCloud() {
   const defaultName = appState.meta.clientName ? `Rutina - ${appState.meta.clientName}` : "Nueva Rutina";
   const name = prompt("Nombre de la rutina para guardar:", defaultName);
   if (!name || !name.trim()) return;
-
-  if (typeof composeMetadataTagsIntoNotes === "function") {
-    composeMetadataTagsIntoNotes();
-  }
+  if (typeof composeMetadataTagsIntoNotes === "function") composeMetadataTagsIntoNotes();
 
   const existing = appState.routines.find(r => r.name.toLowerCase() === name.trim().toLowerCase());
   const routineObj = {
@@ -252,8 +228,10 @@ async function saveRoutineToCloud() {
     updatedAt: new Date().toLocaleDateString(),
     days: JSON.parse(JSON.stringify(appState.days))
   };
+
   if (existing) Object.assign(existing, routineObj);
   else appState.routines.unshift(routineObj);
+
   populateDropdowns(routineObj.id);
   await sendToGoogleSheet({ action: "saveRoutine", routine: routineObj });
   alert(`Rutina "${routineObj.name}" guardada.`);
@@ -267,28 +245,21 @@ async function deleteSelectedRoutine() {
   await sendToGoogleSheet({ action: "deleteRoutine", id });
 }
 
-// =========================================================================
-// EXPORTADOR / CLONADOR DE RUTINA HACIA OTRO CLIENTE
-// =========================================================================
 function openExportRoutineModal() {
   const modal = document.getElementById("export-routine-modal");
   const selectEl = document.getElementById("export-target-client-select");
-  const nameEl = document.getElementById("export-target-client-name");
-  const rutNameEl = document.getElementById("export-target-routine-name");
-
   if (!modal || !selectEl) return;
 
   selectEl.innerHTML = `<option value="">-- Seleccionar Cliente Existente (${appState.clients.length}) --</option>` +
     appState.clients.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
 
-  nameEl.value = "";
-  rutNameEl.value = "Rutina - ";
+  document.getElementById("export-target-client-name").value = "";
+  document.getElementById("export-target-routine-name").value = "Rutina - ";
   modal.classList.remove("section-collapsed");
 }
 
 function closeExportRoutineModal() {
-  const modal = document.getElementById("export-routine-modal");
-  if (modal) modal.classList.add("section-collapsed");
+  document.getElementById("export-routine-modal")?.classList.add("section-collapsed");
 }
 
 function onExportClientSelectChange() {
@@ -304,9 +275,7 @@ function onExportClientSelectChange() {
 function updateExportRoutineDefaultName() {
   const clientName = document.getElementById("export-target-client-name").value.trim();
   const rutNameEl = document.getElementById("export-target-routine-name");
-  if (rutNameEl) {
-    rutNameEl.value = clientName ? `Rutina - ${clientName}` : "Nueva Rutina";
-  }
+  if (rutNameEl) rutNameEl.value = clientName ? `Rutina - ${clientName}` : "Nueva Rutina";
 }
 
 async function confirmExportRoutineToClient() {
@@ -316,10 +285,7 @@ async function confirmExportRoutineToClient() {
   const recalcWeights = document.getElementById("export-recalc-weights").checked;
   const saveCloud = document.getElementById("export-save-cloud").checked;
 
-  if (!targetClientName) {
-    alert("Selecciona o escribe el nombre del cliente destino.");
-    return;
-  }
+  if (!targetClientName) return alert("Selecciona o escribe el nombre del cliente destino.");
 
   let targetClient = (appState.clients || []).find(
     c => c.id === targetClientId || c.name.toLowerCase() === targetClientName.toLowerCase()
@@ -349,16 +315,13 @@ async function confirmExportRoutineToClient() {
       updatedAt: new Date().toLocaleDateString()
     };
     appState.clients.unshift(targetClient);
-    if (saveCloud) {
-      await sendToGoogleSheet({ action: "saveClient", client: targetClient });
-    }
+    if (saveCloud) await sendToGoogleSheet({ action: "saveClient", client: targetClient });
   }
 
   syncMetaInputs();
 
   if (recalcWeights && typeof applyBaseStrengthToRoutine === "function") {
-    const targetRM = extractRMFromNotes(targetClient.notes);
-    applyBaseStrengthToRoutine(true, targetRM);
+    applyBaseStrengthToRoutine(true, extractRMFromNotes(targetClient.notes));
   }
 
   const newRoutineObj = {
@@ -378,9 +341,7 @@ async function confirmExportRoutineToClient() {
   closeExportRoutineModal();
   renderAll();
 
-  if (saveCloud) {
-    await sendToGoogleSheet({ action: "saveRoutine", routine: newRoutineObj });
-  }
+  if (saveCloud) await sendToGoogleSheet({ action: "saveRoutine", routine: newRoutineObj });
 }
 
 function exportJSON() {

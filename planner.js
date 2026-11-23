@@ -1,7 +1,3 @@
-// =========================================================================
-// PLANNER.JS: GRILLA DE ENTRENAMIENTO CON MINIATURA PLAY Y PROGRESION
-// =========================================================================
-
 function populateRowSuggestedWeights(row, bKey) {
   if (!row || !row.name || (bKey !== "str" && bKey !== "core")) return;
   if (typeof estimateExercise1RM !== "function" || typeof roundToGymStep !== "function") return;
@@ -10,18 +6,17 @@ function populateRowSuggestedWeights(row, bKey) {
   const phaseKey = appState.meta.nasmPhase || "3";
   const phaseObj = NASM_PHASES[phaseKey] || NASM_PHASES["3"];
   const step = parseFloat(document.getElementById("rounding-select")?.value) || 1;
-  const progRate = 0.025;
 
   if (est1RM && est1RM > 0) {
-    let targetIntensity = (bKey === "core") ? 0.65 : phaseObj.pct;
+    let targetIntensity = bKey === "core" ? 0.65 : phaseObj.pct;
     if (phaseKey === "5" && /velocidad|speed|salto|jump|explosiv|balístic/i.test(row.name)) {
       targetIntensity = 0.40;
     }
     const w1Val = Math.max(step, roundToGymStep(est1RM * targetIntensity, step));
     row.w1 = String(w1Val);
-    row.w2 = String(roundToGymStep(w1Val * (1 + progRate), step));
-    row.w3 = String(roundToGymStep(w1Val * (1 + progRate * 2), step));
-    row.w4 = String(roundToGymStep(w1Val * (1 + progRate * 3), step));
+    row.w2 = String(roundToGymStep(w1Val * 1.025, step));
+    row.w3 = String(roundToGymStep(w1Val * 1.05, step));
+    row.w4 = String(roundToGymStep(w1Val * 1.075, step));
   } else {
     row.w1 = "";
     row.w2 = "";
@@ -36,17 +31,14 @@ function renderWeeklySeries() {
     (d.blocks.str || []).forEach(r => { if (c[r.pattern] !== undefined) c[r.pattern] += (parseInt(r.sets) || 0); });
     (d.blocks.core || []).forEach(r => { if (c[r.pattern] !== undefined) c[r.pattern] += (parseInt(r.sets) || 0); });
   });
-  const piernas = c.RODILLA + c.CADERA;
-  const torso = c.EMPUJE_H + c.EMPUJE_V + c.TRACCION_H + c.TRACCION_V;
 
-  // Escala alineada a 3-4 series por ejercicio (Milo: 8 a 16 series/semana por patrón individual)
   const getCol = (s, macro) => s === 0 ? "#475569" : macro
     ? (s < 14 ? "var(--series-blue)" : s <= 26 ? "var(--series-green)" : s <= 32 ? "var(--series-yellow)" : "var(--series-red)")
     : (s < 8 ? "var(--series-blue)" : s <= 16 ? "var(--series-green)" : s <= 20 ? "var(--series-yellow)" : "var(--series-red)");
 
   const items = [
-    { t: "Tren Inferior", s: piernas, m: 26, macro: true },
-    { t: "Tren Superior", s: torso, m: 26, macro: true },
+    { t: "Tren Inferior", s: c.RODILLA + c.CADERA, m: 26, macro: true },
+    { t: "Tren Superior", s: c.EMPUJE_H + c.EMPUJE_V + c.TRACCION_H + c.TRACCION_V, m: 26, macro: true },
     { t: "Rodilla", s: c.RODILLA, m: 16, macro: false },
     { t: "Cadera", s: c.CADERA, m: 16, macro: false },
     { t: "Empujes", s: c.EMPUJE_H + c.EMPUJE_V, m: 16, macro: false },
@@ -59,7 +51,7 @@ function renderWeeklySeries() {
 
   container.innerHTML = items.map(i => {
     const col = getCol(i.s, i.macro);
-    return `<div class="series-card ${i.macro ? 'highlight-group' : ''}">
+    return `<div class="series-card ${i.macro ? "highlight-group" : ""}">
       <div class="series-top"><span>${i.t}</span><span style="color:${col}">${i.s} / ${i.m}</span></div>
       <div class="progress-track"><div class="progress-fill" style="width:${Math.min(100, (i.s / i.m) * 100)}%;background:${col}"></div></div>
     </div>`;
@@ -72,8 +64,8 @@ function renderDayTabs() {
 
   container.innerHTML = appState.days.map((d, i) => `
     <div style="display:inline-flex;">
-      <button class="tab-btn ${i === appState.activeDayIndex ? 'active' : ''}" onclick="appState.activeDayIndex=${i};renderAll();">${d.title}</button>
-      ${appState.days.length > 1 ? `<button class="btn-danger" style="border:none;padding:3px 7px;cursor:pointer;font-size:0.72rem;" onclick="removeDay(${i})">X</button>` : ''}
+      <button class="tab-btn ${i === appState.activeDayIndex ? "active" : ""}" onclick="appState.activeDayIndex=${i};renderAll();">${d.title}</button>
+      ${appState.days.length > 1 ? `<button class="btn-danger" style="border:none;padding:3px 7px;cursor:pointer;font-size:0.72rem;" onclick="removeDay(${i})">X</button>` : ""}
     </div>
   `).join("");
 }
@@ -139,8 +131,8 @@ function renderBlocks() {
                 <div style="display:flex;gap:5px;align-items:center;">
                   ${buildExerciseThumbnailBtn(r.name, r.pattern)}
                   <input class="input-exercise-name" value="${escapeHtml(r.name)}" placeholder="Escribir o editar ejercicio..." oninput="updateCell('${b.key}',${rIdx},'name',this.value)" onchange="onRowExerciseNameCommitted('${b.key}',${rIdx})">
-                  <button class="btn btn-icon-action no-print" title="Rotar por otro ejercicio del mismo patrón y calcular peso" onclick="rotateRowExercise('${b.key}',${rIdx})">Rotar</button>
-                  <button class="btn btn-icon-action no-print" title="Guardar este nombre en la Biblioteca" onclick="quickSaveRowExercise('${b.key}',${rIdx})">+</button>
+                  <button class="btn btn-icon-action no-print" title="Rotar ejercicio" onclick="rotateRowExercise('${b.key}',${rIdx})">Rotar</button>
+                  <button class="btn btn-icon-action no-print" title="Guardar en Biblioteca" onclick="quickSaveRowExercise('${b.key}',${rIdx})">+</button>
                 </div>
               </td>
               <td><select class="input-full" style="min-width:145px;" onchange="updateCell('${b.key}',${rIdx},'pattern',this.value)">${buildPatternOptions(r.pattern)}</select></td>
@@ -164,23 +156,18 @@ function renderBlocks() {
 function updateCell(bKey, rIdx, field, val) {
   const row = appState.days[appState.activeDayIndex].blocks[bKey][rIdx];
   row[field] = field === "sets" ? (parseInt(val) || 0) : val;
-
   if (field === "pattern") {
     if (row.name) populateRowSuggestedWeights(row, bKey);
     renderBlocks();
   }
-  if (field === "sets" || field === "pattern") {
-    renderWeeklySeries();
-  }
+  if (field === "sets" || field === "pattern") renderWeeklySeries();
   saveToLocalStorage();
 }
 
 function onRowExerciseNameCommitted(bKey, rIdx) {
   const row = appState.days[appState.activeDayIndex]?.blocks[bKey]?.[rIdx];
   if (!row) return;
-  if (row.name.trim() && !row.w1) {
-    populateRowSuggestedWeights(row, bKey);
-  }
+  if (row.name.trim() && !row.w1) populateRowSuggestedWeights(row, bKey);
   saveToLocalStorage();
   renderBlocks();
 }
@@ -188,23 +175,17 @@ function onRowExerciseNameCommitted(bKey, rIdx) {
 function addRow(bKey, pat, name = "") {
   const def = NASM_PHASES[appState.meta.nasmPhase || "3"].def;
   const list = appState.days[appState.activeDayIndex].blocks[bKey];
-  const defaultSets = bKey === "str" ? def.sets : (bKey === "cool" ? 1 : 2);
-
   const newRow = {
     order: bKey === "str" ? `B${list.length + 1}` : `${list.length + 1}`,
     name,
     pattern: pat,
-    sets: defaultSets,
+    sets: bKey === "str" ? def.sets : (bKey === "cool" ? 1 : 2),
     reps: bKey === "str" ? def.reps : (bKey === "core" ? "8-12 / 30s" : "8-10"),
     rpe: bKey === "str" ? def.rpe : "Control",
     rest: bKey === "str" ? def.rest : "45s",
     w1: "", w2: "", w3: "", w4: ""
   };
-
-  if (name) {
-    populateRowSuggestedWeights(newRow, bKey);
-  }
-
+  if (name) populateRowSuggestedWeights(newRow, bKey);
   list.push(newRow);
   renderAll();
 }
@@ -220,16 +201,16 @@ function applyProgression(pct) {
   appState.days.forEach(d => Object.values(d.blocks).forEach(list => list.forEach(r => {
     const base = parseFloat(String(r.w1).replace(",", "."));
     if (!isNaN(base) && base > 0) {
-      r.w2 = String(Number((Math.round((base * (1 + rate)) / step) * step).toFixed(2)));
-      r.w3 = String(Number((Math.round((base * (1 + rate * 2)) / step) * step).toFixed(2)));
-      r.w4 = String(Number((Math.round((base * (1 + rate * 3)) / step) * step).toFixed(2)));
+      r.w2 = String(roundToGymStep(base * (1 + rate), step));
+      r.w3 = String(roundToGymStep(base * (1 + rate * 2), step));
+      r.w4 = String(roundToGymStep(base * (1 + rate * 3), step));
     }
   })));
   renderAll();
 }
 
 function buildPrintAllDaysView() {
-  const buildClientBannerHtml = () => `
+  const bannerHtml = `
     <div class="print-page-client-banner">
       <div class="print-banner-left">
         <span class="print-banner-title">Plan de Entrenamiento</span>
@@ -243,13 +224,13 @@ function buildPrintAllDaysView() {
     </div>
   `;
 
-  const pagesHtml = appState.days.map(d => {
+  document.getElementById("print-all-days-container").innerHTML = appState.days.map(d => {
     const totalRows = BLOCK_DEFINITIONS.reduce((acc, b) => acc + ((d.blocks[b.key] || []).length), 0);
     const densityClass = totalRows > 16 ? "density-ultra" : (totalRows > 11 ? "density-compact" : "");
 
     return `
       <div class="print-day-page ${densityClass}">
-        ${buildClientBannerHtml()}
+        ${bannerHtml}
         <div class="print-day-bar">
           <span>${escapeHtml(d.title)}</span>
           <span style="font-weight:400;">${escapeHtml(d.focus || "")}</span>
@@ -296,8 +277,6 @@ function buildPrintAllDaysView() {
       </div>
     `;
   }).join("");
-
-  document.getElementById("print-all-days-container").innerHTML = pagesHtml;
 }
 
 function printFullRoutine() {

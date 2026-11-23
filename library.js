@@ -1,7 +1,3 @@
-// =========================================================================
-// LIBRARY.JS: PANEL DE BIBLIOTECA CON EXPLICACIÓN GUARDADA EN GOOGLE SHEETS
-// =========================================================================
-
 let drawerFilterMoment = "ALL";
 
 function initStaticControls() {
@@ -24,20 +20,18 @@ function initStaticControls() {
     const blockSelect = document.createElement("select");
     blockSelect.id = "new-ex-block";
     blockSelect.className = "input-full";
-    blockSelect.title = "Momento de la clase donde se utilizará";
     blockSelect.innerHTML = buildMomentOptions("str");
 
     const tierSelect = document.createElement("select");
     tierSelect.id = "new-ex-tier";
     tierSelect.className = "input-full";
-    tierSelect.title = "Jerarquía / prioridad en el bloque principal";
     tierSelect.innerHTML = buildTierOptions("BASE");
 
     const descInput = document.createElement("textarea");
     descInput.id = "new-ex-desc";
     descInput.className = "input-full";
     descInput.rows = 2;
-    descInput.placeholder = "Explicación técnica / pautas del ejercicio (Se guarda en Google Sheets)...";
+    descInput.placeholder = "Explicación técnica / pautas...";
     descInput.style.gridColumn = "span 2";
     descInput.style.resize = "vertical";
 
@@ -62,7 +56,7 @@ function initStaticControls() {
       ["str", "3. Principal"],
       ["cool", "4. Vuelta Calma"]
     ].map((m, idx) =>
-      `<span class="pill ${idx === 0 ? 'active' : ''}" onclick="setDrawerMomentFilter('${m[0]}', this)">${m[1]}</span>`
+      `<span class="pill ${idx === 0 ? "active" : ""}" onclick="setDrawerMomentFilter('${m[0]}', this)">${m[1]}</span>`
     ).join("");
     pillsContainer.parentNode.insertBefore(momentBar, pillsContainer);
   }
@@ -77,7 +71,7 @@ function initStaticControls() {
 
   if (pillsContainer) {
     pillsContainer.innerHTML = pills.map((p, i) =>
-      `<span class="pill ${i === 0 ? 'active' : ''}" onclick="setDrawerFilter('${p[0]}', this)">${p[1]}</span>`
+      `<span class="pill ${i === 0 ? "active" : ""}" onclick="setDrawerFilter('${p[0]}', this)">${p[1]}</span>`
     ).join("");
   }
 }
@@ -108,18 +102,15 @@ function setDrawerFilter(pat, el) {
 function addExerciseByIdToDay(exId) {
   const ex = (appState.exercises || []).find(e => e.id === exId);
   if (!ex) return;
-  const exBlock = inferExerciseMoment(ex);
-  addRow(exBlock, ex.pattern, ex.name);
+  addRow(inferExerciseMoment(ex), ex.pattern, ex.name);
 }
 
 function renderDrawerLibrary() {
   if (typeof enrichExercisesMetadata === "function") enrichExercisesMetadata();
-  const searchInput = document.getElementById("drawer-search");
-  const q = (searchInput ? searchInput.value : "").toLowerCase();
+  const q = (document.getElementById("drawer-search")?.value || "").toLowerCase();
 
   const filtered = (appState.exercises || []).filter(ex => {
-    const exMoment = inferExerciseMoment(ex);
-    const matchMoment = drawerFilterMoment === "ALL" || exMoment === drawerFilterMoment;
+    const matchMoment = drawerFilterMoment === "ALL" || inferExerciseMoment(ex) === drawerFilterMoment;
     const matchPat = drawerFilterPattern === "ALL" || ex.pattern === drawerFilterPattern;
     const matchQ = !q || ex.name.toLowerCase().includes(q) || (ex.equip || "").toLowerCase().includes(q);
     return matchMoment && matchPat && matchQ;
@@ -216,10 +207,7 @@ async function saveExerciseFromDrawerForm() {
   const descEl = document.getElementById("new-ex-desc");
 
   const name = nameEl.value.trim();
-  if (!name) {
-    alert("Ingrese el nombre del ejercicio.");
-    return;
-  }
+  if (!name) return alert("Ingrese el nombre del ejercicio.");
 
   const chosenBlock = blockEl ? blockEl.value : (PATTERN_CONFIG[patEl.value]?.defaultBlock || "str");
   const chosenTier = tierEl ? tierEl.value : inferExerciseTier({ name, pattern: patEl.value });
@@ -231,15 +219,17 @@ async function saveExerciseFromDrawerForm() {
     const target = appState.exercises.find(e => e.id === editingExerciseId);
     if (target) {
       const oldName = target.name;
-      target.name = name;
-      target.pattern = patEl.value;
-      target.equip = eqEl.value.trim() || "Libre";
-      target.author = encodedAuthor;
-      target.block = chosenBlock;
-      target.momento = sheetMoment;
-      target.tier = chosenTier;
-      target.jerarquia = chosenTier;
-      target.desc = descText;
+      Object.assign(target, {
+        name,
+        pattern: patEl.value,
+        equip: eqEl.value.trim() || "Libre",
+        author: encodedAuthor,
+        block: chosenBlock,
+        momento: sheetMoment,
+        tier: chosenTier,
+        jerarquia: chosenTier,
+        desc: descText
+      });
 
       appState.days.forEach(d => {
         Object.values(d.blocks).forEach(list => {
@@ -262,7 +252,7 @@ async function saveExerciseFromDrawerForm() {
 
   const newEx = {
     id: "ex_" + Date.now(),
-    name: name,
+    name,
     pattern: patEl.value,
     equip: eqEl.value.trim() || "Libre",
     author: encodedAuthor,
@@ -282,10 +272,7 @@ async function saveExerciseFromDrawerForm() {
 
 async function quickSaveRowExercise(blockKey, rIdx) {
   const row = appState.days[appState.activeDayIndex]?.blocks[blockKey]?.[rIdx];
-  if (!row || !row.name.trim()) {
-    alert("Escriba primero el nombre del ejercicio en la fila.");
-    return;
-  }
+  if (!row || !row.name.trim()) return alert("Escriba primero el nombre del ejercicio en la fila.");
 
   const momentInfo = MOMENT_CONFIG[blockKey] || MOMENT_CONFIG.str;
   const equip = prompt(`Guardar "${row.name}" en [${momentInfo.short}].\nElemento (ej: Barra, Mancuernas, Kettlebell, Peso Corporal):`, "Libre");
@@ -295,11 +282,7 @@ async function quickSaveRowExercise(blockKey, rIdx) {
   if (blockKey === "str") {
     const suggested = rIdx === 0 ? "BASE" : chosenTier;
     const tierPrompt = prompt(
-      `Jerarquía en el Bloque Principal para "${row.name}":\n` +
-      `1 = BASE (Poliarticular Bilateral - 1er ejercicio: Sentadilla, Peso Muerto, Banca, Militar, Dominadas)\n` +
-      `2 = INTEGRADO (Full Body / Multiarticular dinámico: Thruster, Clean, Swing, Squat a Press)\n` +
-      `3 = UNILATERAL (Secundario a 1 pierna o 1 brazo: Búlgara, Estocada, RDL 1p, Remo 1b)\n` +
-      `4 = ANALITICO (Aislado / Correctivo: Curl femoral, Puente glúteos, Face pull, Scaption)`,
+      `Jerarquía en Bloque Principal para "${row.name}":\n1 = BASE\n2 = INTEGRADO\n3 = UNILATERAL\n4 = ANALITICO`,
       suggested === "BASE" ? "1" : (suggested === "INTEGRADO" ? "2" : (suggested === "UNILATERAL" ? "3" : "4"))
     );
     if (tierPrompt === "1") chosenTier = "BASE";
@@ -332,7 +315,7 @@ async function quickSaveRowExercise(blockKey, rIdx) {
 
   renderDrawerLibrary();
   await sendToGoogleSheet({ action: "addExercise", exercise: exObj });
-  alert(`"${exObj.name}" guardado como [${momentInfo.short}${blockKey === 'str' ? ' • ' + TIER_CONFIG[chosenTier].short : ''}].`);
+  alert(`"${exObj.name}" guardado como [${momentInfo.short}${blockKey === "str" ? " • " + TIER_CONFIG[chosenTier].short : ""}].`);
 }
 
 async function deleteExerciseFromCloud(id) {

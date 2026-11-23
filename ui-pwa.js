@@ -1,7 +1,3 @@
-// =========================================================================
-// UI-PWA.JS: PANEL SUPERIOR SOLO ARRIBA DE TODO + BOTON SERIES Y BIBLIOTECA
-// =========================================================================
-
 function setupInstallablePWA() {
   try {
     if (!document.querySelector('link[rel="manifest"]')) {
@@ -12,9 +8,7 @@ function setupInstallablePWA() {
     }
 
     if ("serviceWorker" in navigator && window.location.protocol.startsWith("http")) {
-      navigator.serviceWorker.register("./sw.js").catch((err) => {
-        console.warn("Service Worker no registrado:", err);
-      });
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
     }
 
     window.addEventListener("beforeinstallprompt", (e) => {
@@ -29,9 +23,7 @@ function setupInstallablePWA() {
       const btn = document.getElementById("btn-install-pwa");
       if (btn) btn.style.display = "none";
     });
-  } catch (err) {
-    console.warn("Aviso PWA:", err);
-  }
+  } catch (err) {}
 }
 
 async function installPWA() {
@@ -54,25 +46,14 @@ function updateHeaderLayoutAndSpacer() {
 
   if (!wrapper || !topEl || !seriesEl || !spacer) return;
 
-  // El contenedor general nunca usa scroll-tucked para que Series Semanales
-  // pueda mostrarse u ocultarse libremente con su boton de abajo.
   wrapper.classList.remove("scroll-tucked");
-
-  // El panel superior SOLO se muestra cuando estamos arriba de todo (scrollY <= 15)
   const isAtVeryTop = window.scrollY <= 15;
   topEl.classList.toggle("section-collapsed", !isAtVeryTop);
-
-  // El panel de Series Semanales responde a su boton inferior en cualquier momento
   seriesEl.classList.toggle("section-collapsed", !showSeriesPanel);
-
-  if (btnSeries) {
-    btnSeries.classList.toggle("btn-primary", showSeriesPanel);
-  }
+  if (btnSeries) btnSeries.classList.toggle("btn-primary", showSeriesPanel);
 
   requestAnimationFrame(() => {
-    if (isAtVeryTop) {
-      spacer.style.height = wrapper.offsetHeight + "px";
-    }
+    if (isAtVeryTop) spacer.style.height = wrapper.offsetHeight + "px";
   });
 }
 
