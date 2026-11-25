@@ -244,7 +244,6 @@ async function saveExerciseFromDrawerForm() {
 
       cancelExerciseEdit();
       renderAll();
-      await sendToGoogleSheet({ action: "deleteExercise", id: target.id });
       await sendToGoogleSheet({ action: "addExercise", exercise: target });
       return;
     }
@@ -308,7 +307,6 @@ async function quickSaveRowExercise(blockKey, rIdx) {
 
   if (existing) {
     Object.assign(existing, exObj);
-    await sendToGoogleSheet({ action: "deleteExercise", id: exObj.id });
   } else {
     appState.exercises.unshift(exObj);
   }

@@ -45,7 +45,7 @@ function openExerciseDemoModal(exName, patKey) {
           <textarea id="modal-ex-desc-input" rows="4" class="input-full" style="resize:vertical; line-height:1.45;" placeholder="Escribí acá la explicación técnica...">${escapeHtml(explanationToShow)}</textarea>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; gap:8px;">
             <span style="font-size:0.7rem; color:var(--text-muted);">${savedDesc ? "Guardada en Excel" : "Sugerencia base por patrón"}</span>
-            <button type="button" class="btn btn-success" style="font-size:0.74rem; padding:5px 10px;" onclick="saveExplanationFromModal('${escapeHtml(cleanName)}', '${escapeHtml(pat)}')">Guardar en Excel</button>
+            <button type="button" class="btn btn-success" style="font-size:0.74rem; padding:5px 10px;" onclick="saveExplanationFromModal('${escapeJsAttr(cleanName)}', '${escapeJsAttr(pat)}')">Guardar en Excel</button>
           </div>
         ` : `
           <div style="color:var(--text-main); line-height:1.5; white-space:pre-line;">${escapeHtml(explanationToShow)}</div>
@@ -71,11 +71,14 @@ async function saveExplanationFromModal(exName, patKey) {
   if (target) {
     const meta = getExerciseMeta(target);
     target.desc = newDesc;
+    target.block = meta.block;
+    target.momento = MOMENT_CONFIG[meta.block]?.sheetVal || "PRINCIPAL";
+    target.tier = meta.tier;
+    target.jerarquia = meta.tier;
     target.author = buildEncodedExerciseAuthor(meta.cleanAuthor, meta.block, meta.tier, newDesc);
     saveToLocalStorage();
     renderAll();
     if (typeof sendToGoogleSheet === "function") {
-      await sendToGoogleSheet({ action: "deleteExercise", id: target.id });
       await sendToGoogleSheet({ action: "addExercise", exercise: target });
     }
   } else {
@@ -87,6 +90,10 @@ async function saveExplanationFromModal(exName, patKey) {
       pattern: patKey || "RODILLA",
       equip: "Libre",
       desc: newDesc,
+      block,
+      momento: MOMENT_CONFIG[block]?.sheetVal || "PRINCIPAL",
+      tier,
+      jerarquia: tier,
       author: buildEncodedExerciseAuthor(appState.meta.coachName || "Propio", block, tier, newDesc)
     };
     appState.exercises.unshift(target);

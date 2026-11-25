@@ -187,7 +187,7 @@ function buildExerciseThumbnailBtn(exName, patKey) {
     e => String(e.name || "").trim().toLowerCase() === cleanName.toLowerCase()
   );
   const hasCustomDesc = Boolean(foundEx && extractExerciseDescription(foundEx));
-  return `<button type="button" class="ex-info-btn ${hasCustomDesc ? "has-custom-desc" : ""} no-print" title="Ver explicación técnica" onclick="openExerciseDemoModal('${escapeHtml(cleanName || "Ejercicio")}', '${escapeHtml(pat)}')">▶</button>`;
+  return `<button type="button" class="ex-info-btn ${hasCustomDesc ? "has-custom-desc" : ""} no-print" title="Ver explicación técnica" onclick="openExerciseDemoModal('${escapeJsAttr(cleanName || "Ejercicio")}', '${escapeJsAttr(pat)}')">▶</button>`;
 }
 
 function extractRMFromNotes(notesStr) {
@@ -621,6 +621,14 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function escapeJsAttr(s) {
+  return String(s || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;")
+    .replace(/\r?\n/g, " ");
 }
 
 function setupCoachPinVisibilityToggle() {

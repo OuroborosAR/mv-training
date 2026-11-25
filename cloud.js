@@ -135,7 +135,10 @@ function loadSelectedClient() {
   } else {
     populateDropdowns("");
   }
-
+  if (typeof genConfig !== "undefined") {
+    genConfig.phase = appState.meta.nasmPhase;
+    if (typeof syncGenPrescriptionFromPhaseAndMethod === "function") syncGenPrescriptionFromPhaseAndMethod();
+  }
   syncMetaInputs();
   updateNASMAssistant();
   renderAll();
@@ -169,7 +172,11 @@ function loadPresetRoutine() {
   appState.meta.clientGoal = r.goal || "";
   appState.days = JSON.parse(JSON.stringify(r.days || [createDefaultDay(1)]));
   appState.activeDayIndex = 0;
-
+  
+  if (typeof genConfig !== "undefined") {
+    genConfig.phase = appState.meta.nasmPhase;
+    if (typeof syncGenPrescriptionFromPhaseAndMethod === "function") syncGenPrescriptionFromPhaseAndMethod();
+  }
   populateDropdowns(r.id);
   syncMetaInputs();
   updateNASMAssistant();

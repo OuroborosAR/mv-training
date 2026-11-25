@@ -142,14 +142,30 @@ function getPagosMap() {
 }
 
 function isGroupMonthPaid(groupId, yearMonth) {
+  const group = (appState.presencialesGrupos || []).find(g => g.id === groupId);
+  if (group?.schedule?.paidMonths && typeof group.schedule.paidMonths[yearMonth] === "boolean") {
+    return group.schedule.paidMonths[yearMonth];
+  }
   return Boolean(getPagosMap()[`${groupId}_${yearMonth}`]);
 }
 
 function toggleGroupMonthPaid(groupId, yearMonth) {
+  const newVal = !isGroupMonthPaid(groupId, yearMonth);
+
   const map = getPagosMap();
-  const key = `${groupId}_${yearMonth}`;
-  map[key] = !map[key];
+  map[`${groupId}_${yearMonth}`] = newVal;
   localStorage.setItem(PAGOS_STORAGE_KEY, JSON.stringify(map));
+
+  const group = (appState.presencialesGrupos || []).find(g => g.id === groupId);
+  if (group) {
+    if (!group.schedule || typeof group.schedule !== "object") group.schedule = {};
+    if (!group.schedule.paidMonths || typeof group.schedule.paidMonths !== "object") group.schedule.paidMonths = {};
+    group.schedule.paidMonths[yearMonth] = newVal;
+    group.updatedAt = new Date().toLocaleDateString();
+    saveToLocalStorage();
+    syncPresencialToSheet({ action: "savePresencialGroup", group });
+  }
+
   renderPresencialesModule();
 }
 
@@ -391,6 +407,7 @@ function savePresencialGroupFromUI() {
   if (!name) return alert("Ingresa el nombre del grupo o alumno.");
 
   const editId = document.getElementById("p-grp-edit-id").value.trim();
+  const prevGroup = editId ? (appState.presencialesGrupos || []).find(g => g.id === editId) : null;
   const groupObj = {
     id: editId || ("pgrp_" + Date.now()),
     name,
@@ -400,7 +417,7 @@ function savePresencialGroupFromUI() {
     phone: document.getElementById("p-grp-phone").value.trim(),
     status: document.getElementById("p-grp-status").value,
     updatedAt: new Date().toLocaleDateString(),
-    schedule: {}
+    schedule: (prevGroup && prevGroup.schedule && typeof prevGroup.schedule === "object") ? prevGroup.schedule : {}
   };
 
   if (!appState.presencialesGrupos) appState.presencialesGrupos = [];

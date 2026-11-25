@@ -317,11 +317,28 @@ function updateStudentWeight(routineId, dayIdx, blockKey, rowIdx, weekField, val
   setStudentSaveStatus("Cambios pendientes de envio...", "var(--series-yellow)");
 }
 
+let studentWeightSyncTimer = null;
+
 async function syncStudentRoutineWeights(routineId, showManualAlert = false) {
   const routine = (appState.routines || []).find(r => r.id === routineId);
   if (!routine) return;
 
   saveToLocalStorage();
+
+  if (!showManualAlert) {
+    clearTimeout(studentWeightSyncTimer);
+    setStudentSaveStatus("Guardando pesos en breve...", "var(--series-yellow)");
+    studentWeightSyncTimer = setTimeout(() => {
+      _pushStudentRoutineWeights(routine, false);
+    }, 700);
+    return;
+  }
+
+  clearTimeout(studentWeightSyncTimer);
+  await _pushStudentRoutineWeights(routine, true);
+}
+
+async function _pushStudentRoutineWeights(routine, showManualAlert) {
   setStudentSaveStatus("Guardando pesos en la nube...", "var(--accent)");
   try {
     const res = await fetch(appState.sheetUrl, {
@@ -479,7 +496,7 @@ function renderStudentRoutinesView() {
                   <td class="col-ex">
                     <div style="display:flex; align-items:center; gap:8px;">
                       ${buildExerciseThumbnailBtn(r.name, r.pattern)}
-                      <strong style="cursor:pointer;" onclick="openExerciseDemoModal('${escapeHtml(r.name)}', '${escapeHtml(r.pattern)}')">${escapeHtml(r.name)}</strong>
+                      <strong style="cursor:pointer;" onclick="openExerciseDemoModal('${escapeJsAttr(r.name)}', '${escapeJsAttr(r.pattern)}')">${escapeHtml(r.name)}</strong>
                     </div>
                   </td>
                   <td style="text-align:center;">${r.sets}</td>
@@ -550,7 +567,7 @@ function renderStudentExercisesList() {
       : filtered.map(ex => {
           const cfg = PATTERN_CONFIG[ex.pattern] || { label: ex.pattern };
           return `
-            <div class="exercise-item" style="cursor:pointer;" onclick="openExerciseDemoModal('${escapeHtml(ex.name)}', '${escapeHtml(ex.pattern)}')">
+            <div class="exercise-item" style="cursor:pointer;" onclick="openExerciseDemoModal('${escapeJsAttr(ex.name)}', '${escapeJsAttr(ex.pattern)}')">
               <div style="display:flex; align-items:center; gap:8px;">
                 ${buildExerciseThumbnailBtn(ex.name, ex.pattern)}
                 <div class="ex-info">
