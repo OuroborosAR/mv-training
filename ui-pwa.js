@@ -49,8 +49,13 @@ function updateHeaderLayoutAndSpacer() {
   wrapper.classList.remove("scroll-tucked");
   const isAtVeryTop = window.scrollY <= 15;
   topEl.classList.toggle("section-collapsed", !isAtVeryTop);
-  seriesEl.classList.toggle("section-collapsed", !showSeriesPanel);
-  if (btnSeries) btnSeries.classList.toggle("btn-primary", showSeriesPanel);
+
+  const presView = document.getElementById("coach-presenciales-view");
+  const isInPresenciales = Boolean(presView && !presView.classList.contains("section-collapsed"));
+  const shouldShowSeries = showSeriesPanel && !isInPresenciales;
+
+  seriesEl.classList.toggle("section-collapsed", !shouldShowSeries);
+  if (btnSeries) btnSeries.classList.toggle("btn-primary", shouldShowSeries);
 
   requestAnimationFrame(() => {
     if (isAtVeryTop) spacer.style.height = wrapper.offsetHeight + "px";

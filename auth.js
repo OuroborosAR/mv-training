@@ -126,6 +126,8 @@ async function loginAsCoach(pinOverride) {
     appState.presencialesGrupos = data.presencialesGrupos || [];
     appState.presencialesRegistros = data.presencialesRegistros || [];
 
+    if (typeof normalizarYDepurarRegistros === "function") normalizarYDepurarRegistros();
+
     if (appState.days.length === 0 && appState.routines.length > 0) {
       appState.days = JSON.parse(JSON.stringify(appState.routines[0].days));
     }

@@ -620,7 +620,12 @@ table.plan-table td.week-cell {
 }
 
 .input-sm { width: 54px; text-align: center; padding: 6px 4px; }
-.input-md { width: 76px; text-align: center; padding: 6px 6px; }
+.input-md { width: 88px; text-align: center; padding: 6px 5px; }
+.input-sm { width: 54px; text-align: center; padding: 6px 4px; }
+.input-pausa { width: 72px; text-align: center; padding: 6px 4px; }
+.input-wk { width: 66px; text-align: center; padding: 6px 4px; }
+.input-md { width: 88px; text-align: center; padding: 6px 5px; }
+.input-full { width: 100%; }
 .input-full { width: 100%; }
 
 .library-drawer {

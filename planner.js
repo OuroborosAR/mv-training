@@ -4,24 +4,19 @@ function populateRowSuggestedWeights(row, bKey) {
 
   const est1RM = estimateExercise1RM(row);
   const phaseKey = appState.meta.nasmPhase || "3";
-  const phaseObj = NASM_PHASES[phaseKey] || NASM_PHASES["3"];
   const step = parseFloat(document.getElementById("rounding-select")?.value) || 1;
 
   if (est1RM && est1RM > 0) {
-    let targetIntensity = bKey === "core" ? 0.65 : phaseObj.pct;
-    if (phaseKey === "5" && /velocidad|speed|salto|jump|explosiv|balístic/i.test(row.name)) {
-      targetIntensity = 0.40;
-    }
+    const targetIntensity = typeof inferTargetPctFromRow === "function"
+      ? inferTargetPctFromRow(row, bKey, phaseKey)
+      : (NASM_PHASES[phaseKey]?.pct || 0.75);
     const w1Val = Math.max(step, roundToGymStep(est1RM * targetIntensity, step));
     row.w1 = String(w1Val);
     row.w2 = String(roundToGymStep(w1Val * 1.025, step));
     row.w3 = String(roundToGymStep(w1Val * 1.05, step));
     row.w4 = String(roundToGymStep(w1Val * 1.075, step));
   } else {
-    row.w1 = "";
-    row.w2 = "";
-    row.w3 = "";
-    row.w4 = "";
+    row.w1 = row.w2 = row.w3 = row.w4 = "";
   }
 }
 
@@ -113,9 +108,9 @@ function renderBlocks() {
               <th class="col-ex">Ejercicio (Explicación ▶)</th>
               <th style="width:165px;">Patron (Interno)</th>
               <th style="width:58px;">Series</th>
-              <th style="width:76px;">Reps</th>
-              <th style="width:76px;">Carga/Int</th>
-              <th style="width:64px;">Pausa</th>
+              <th style="width:94px;">Reps</th>
+              <th style="width:94px;">Carga/Int</th>
+              <th style="width:76px;">Pausa</th>
               <th class="week-col">Sem 1</th>
               <th class="week-col">Sem 2</th>
               <th class="week-col">Sem 3</th>
@@ -139,11 +134,11 @@ function renderBlocks() {
               <td><input type="number" class="input-sm" value="${r.sets}" oninput="updateCell('${b.key}',${rIdx},'sets',this.value)"></td>
               <td><input class="input-md" value="${escapeHtml(r.reps)}" oninput="updateCell('${b.key}',${rIdx},'reps',this.value)"></td>
               <td><input class="input-md" value="${escapeHtml(r.rpe)}" oninput="updateCell('${b.key}',${rIdx},'rpe',this.value)"></td>
-              <td><input class="input-sm" value="${escapeHtml(r.rest)}" oninput="updateCell('${b.key}',${rIdx},'rest',this.value)"></td>
-              <td class="week-cell"><input class="input-md" value="${escapeHtml(r.w1)}" oninput="updateCell('${b.key}',${rIdx},'w1',this.value)"></td>
-              <td class="week-cell"><input class="input-md" value="${escapeHtml(r.w2)}" oninput="updateCell('${b.key}',${rIdx},'w2',this.value)"></td>
-              <td class="week-cell"><input class="input-md" value="${escapeHtml(r.w3)}" oninput="updateCell('${b.key}',${rIdx},'w3',this.value)"></td>
-              <td class="week-cell"><input class="input-md" value="${escapeHtml(r.w4)}" oninput="updateCell('${b.key}',${rIdx},'w4',this.value)"></td>
+              <td><input class="input-pausa" value="${escapeHtml(r.rest)}" oninput="updateCell('${b.key}',${rIdx},'rest',this.value)"></td>
+              <td class="week-cell"><input class="input-wk" value="${escapeHtml(r.w1)}" oninput="updateCell('${b.key}',${rIdx},'w1',this.value)"></td>
+              <td class="week-cell"><input class="input-wk" value="${escapeHtml(r.w2)}" oninput="updateCell('${b.key}',${rIdx},'w2',this.value)"></td>
+              <td class="week-cell"><input class="input-wk" value="${escapeHtml(r.w3)}" oninput="updateCell('${b.key}',${rIdx},'w3',this.value)"></td>
+              <td class="week-cell"><input class="input-wk" value="${escapeHtml(r.w4)}" oninput="updateCell('${b.key}',${rIdx},'w4',this.value)"></td>
               <td class="no-print"><button class="btn btn-danger" style="padding:5px 9px;" onclick="deleteRow('${b.key}',${rIdx})">X</button></td>
             </tr>`).join("")}
           </tbody>
@@ -173,16 +168,38 @@ function onRowExerciseNameCommitted(bKey, rIdx) {
 }
 
 function addRow(bKey, pat, name = "") {
-  const def = NASM_PHASES[appState.meta.nasmPhase || "3"].def;
+  const phaseKey = appState.meta.nasmPhase || "3";
+  const def = (NASM_PHASES[phaseKey] || NASM_PHASES["3"]).def;
   const list = appState.days[appState.activeDayIndex].blocks[bKey];
+  const defaultSets = bKey === "str" ? def.sets : (bKey === "cool" ? 1 : 2);
+
+  let reps = bKey === "str" ? def.reps : (bKey === "core" ? "8-12" : "8-10");
+  let rpe = bKey === "str" ? def.rpe : "Control";
+  let rest = bKey === "str" ? def.rest : "45s";
+
+  if (name && typeof prescribeRowForExercise === "function") {
+    const foundEx = (appState.exercises || []).find(
+      e => String(e.name || "").trim().toLowerCase() === String(name).trim().toLowerCase()
+    );
+    const exObj = foundEx || { name, pattern: pat, equip: "" };
+    const slotRole = bKey === "str" && typeof getSlotRoleForPhase === "function"
+      ? getSlotRoleForPhase(phaseKey, list.length, appState.days.length, appState.activeDayIndex)
+      : null;
+    const methodKey = (typeof genConfig !== "undefined" && genConfig.method) ? genConfig.method : "nucleo";
+    const rx = prescribeRowForExercise(exObj, bKey, list.length, defaultSets, phaseKey, methodKey, slotRole);
+    reps = rx.reps;
+    rpe = rx.rpe;
+    rest = rx.rest;
+  }
+
   const newRow = {
     order: bKey === "str" ? `B${list.length + 1}` : `${list.length + 1}`,
     name,
     pattern: pat,
-    sets: bKey === "str" ? def.sets : (bKey === "cool" ? 1 : 2),
-    reps: bKey === "str" ? def.reps : (bKey === "core" ? "8-12 / 30s" : "8-10"),
-    rpe: bKey === "str" ? def.rpe : "Control",
-    rest: bKey === "str" ? def.rest : "45s",
+    sets: defaultSets,
+    reps,
+    rpe,
+    rest,
     w1: "", w2: "", w3: "", w4: ""
   };
   if (name) populateRowSuggestedWeights(newRow, bKey);

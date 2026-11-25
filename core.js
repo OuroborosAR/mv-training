@@ -37,10 +37,10 @@ const TIER_CONFIG = {
 
 const NASM_PHASES = {
   "1": { name: "Fase 1: Estabilizacion", pct: 0.60, reps: "12-20", sets: "1-3", intensity: "50-70%", rest: "0-90s", focus: "Control postural y estabilidad articular.", def: { sets: 3, reps: "12-15", rpe: "60%", rest: "60s" } },
-  "2": { name: "Fase 2: Fuerza Resistencia", pct: 0.75, reps: "8-12", sets: "2-4", intensity: "70-80%", rest: "0-60s", focus: "Trabajo combinado de fuerza base y estabilidad.", def: { sets: 3, reps: "10-12", rpe: "75%", rest: "60s" } },
-  "3": { name: "Fase 3: Hipertrofia", pct: 0.80, reps: "6-12", sets: "3-5", intensity: "75-85%", rest: "60-90s", focus: "Volumen semanal objetivo de 12 a 15 series (maximo 20).", def: { sets: 4, reps: "8-10", rpe: "80%", rest: "75s" } },
-  "4": { name: "Fase 4: Fuerza Maxima", pct: 0.875, reps: "1-5", sets: "4-6", intensity: "85-100%", rest: "3-5m", focus: "Cargas altas en patrones primarios.", def: { sets: 4, reps: "4-5", rpe: "87.5%", rest: "3m" } },
-  "5": { name: "Fase 5: Potencia", pct: 0.85, reps: "1-5 + 8-10", sets: "3-5", intensity: "85% / Vel", rest: "1-2m", focus: "Contrastes de fuerza pesada (85%) y velocidad explosiva.", def: { sets: 4, reps: "5", rpe: "85% / Explosivo", rest: "2m" } }
+  "2": { name: "Fase 2: Fuerza Resistencia", pct: 0.70, reps: "8-12", sets: "2-4", intensity: "70-80%", rest: "0-60s", focus: "Trabajo combinado de fuerza base y estabilidad.", def: { sets: 3, reps: "10-12", rpe: "70%", rest: "75s" } },
+  "3": { name: "Fase 3: Hipertrofia", pct: 0.75, reps: "6-12", sets: "3-5", intensity: "70-85%", rest: "60-90s", focus: "Volumen semanal objetivo de 12 a 16 series.", def: { sets: 4, reps: "8-10", rpe: "75%", rest: "90s" } },
+  "4": { name: "Fase 4: Fuerza Maxima", pct: 0.85, reps: "1-5", sets: "4-6", intensity: "85-100%", rest: "3-5m", focus: "Cargas altas en patrones primarios.", def: { sets: 4, reps: "4-5", rpe: "85%", rest: "3m" } },
+  "5": { name: "Fase 5: Potencia", pct: 0.85, reps: "3-5 + 5-6", sets: "3-5", intensity: "85% / 40% Vel", rest: "2-3m", focus: "Contrastes de fuerza pesada (85%) y potencia explosiva.", def: { sets: 4, reps: "3-5", rpe: "85%", rest: "2.5m" } }
 };
 
 const STRENGTH_PRESETS = {
@@ -138,8 +138,8 @@ function inferExerciseTier(ex) {
   const pat = String(ex.pattern || "RODILLA").toUpperCase();
 
   if (/thruster|squat a press|squat a remo|squat to row|step-up.*press|subida.*press|clean|cargada|snatch|arrancada|swing|push press|push jerk|anyhow|levantamiento de objeto|turkish|levantada turca|windmill|molino|woodchop|lift & chop/i.test(name)) return "INTEGRADO";
+  if (/curl|scott|predicador|leg curl|leg extension|extensión de cuádriceps|extension de cuadriceps|sillón|sillon|camilla|deslizante|hamstring|puente de glúteos|puente de gluteos|floor bridge|scaption|plano escapular|y-w|face pull|vuelo|apertura|pecfly|pec fly|pec deck|contractora|pull-apart|jefferson|back extension|banco romano|slr|tríceps|triceps|bíceps|biceps|abducci|aducci|gemelo|pantorrilla|sóleo|soleo|calf|aisla/i.test(name)) return "ANALITICO";
   if (/búlgara|bulgara|estocada|lunge|step-up|subida al caj|pistol|1 pierna|una pierna|unipodal|unilateral|1 brazo|un brazo|1 mano|una mano|medio arrodillado|half-kneeling|rotatorio|asimétric|asimetric|alternad|suitcase|maleta|waiter/i.test(name)) return "UNILATERAL";
-  if (/curl femoral|leg curl|deslizante|hamstring|puente de glúteos|puente de gluteos|floor bridge|scaption|plano escapular|y-w|face pull|vuelo|apertura|pull-apart|jefferson|back extension|banco romano|slr|aisla/i.test(name)) return "ANALITICO";
   if (["RODILLA", "CADERA", "EMPUJE_H", "EMPUJE_V", "TRACCION_H", "TRACCION_V"].includes(pat)) return "BASE";
   return "INTEGRADO";
 }
@@ -282,35 +282,61 @@ function estimateExercise1RM(row, customRM = null) {
   const fullText = `${name} ${equip}`;
   const pat = String(row.pattern || "RODILLA").toUpperCase();
 
-  if (/air squat|sentadilla libre|push-up|flexiones|plancha|side plank|bird-dog|dead bug|bicho muerto|curl-up|ab wheel|rueda abdominal|rollout|ab dolly|smr|foam|rodillo|gato-vaca|tube walking|mini band|superband|tiraband|banda elástica|banda elastica|estiramiento|respiraci|box jump|salto al caj|salto en largo|drop jump|depth jump|hop|bound|skip|trx|anillas|dominadas exc|pistol|handstand|sissy/i.test(fullText) && !/lastre|lastrad|mancuerna|barra|kettlebell|disco/i.test(fullText)) {
-    return null;
+  if (pat === "MOVILIDAD" || /^aprox\./i.test(name)) return null;
+
+  if (/dominada|chin-up|pull-up/i.test(fullText)) {
+    const activePhase = String(appState.meta.nasmPhase || "3");
+    const canAddLoad = /lastre|lastrad/i.test(fullText) && rm.pulldown >= 75 && (activePhase === "4" || activePhase === "5");
+    return canAddLoad ? rm.pulldown * 0.20 : null;
   }
 
+  const hasLoadInName = /\b(lastre|lastrad\w*|chaleco|mancuerna\w*|macuerna\w*|dumbbell\w*|manc\.?|db|kettlebell\w*|kettlebelt\w*|kb|pesa rusa|disco\w*|polea\w*|cable\w*|máquina\w*|maquina\w*|machine|prensa|hack|péndulo|pendulo|smith|multipower|landmine|sandbag|corebag|bolsa|med ball|medicine ball|balón medicinal|balon medicinal|pelota medicinal)\b|\bbarra\b(?!\s*fija)/i.test(name);
+  const hasExternalLoad = hasLoadInName || /\b(lastre|lastrad\w*|chaleco|mancuerna\w*|macuerna\w*|dumbbell\w*|manc\.?|db|kettlebell\w*|kettlebelt\w*|kb|pesa rusa|disco\w*|polea\w*|cable\w*|máquina\w*|maquina\w*|machine|prensa|hack|péndulo|pendulo|smith|multipower|landmine|sandbag|corebag|bolsa|clava|clavas|macebell|med ball|medicine ball|balón medicinal|balon medicinal|pelota medicinal)\b|\bbarra\b(?!\s*fija)/i.test(equip);
+
+  const isStrictlyBodyweightName = /pistol|sentadilla a 1 pierna|air squat|sentadilla libre|push-up|flexiones|lagartija|plancha|plank|bird-dog|dead bug|bicho muerto|curl-up|ab wheel|rueda abdominal|rollout|smr|foam|rodillo|gato-vaca|cat-cow|tube walking|estiramiento|respiraci|box jump|salto|jump|\bhop\b|bound|skip|handstand|sissy|remo invertido|australian|remo en puerta|puerta|mesa|fondos|dips|muscle-up|jumping jack|burpee|mountain climber|escalador|cinta|pasadas|km\/h|trote|correr|bici|banda elástica|banda elastica|en casa|espinal|superman/i.test(name);
+  const isBodyweightEquip = /peso corporal|pesto corporal|colchoneta|suelo|pared|trx|anilla|suspensi|barra fija|paralelas|mini band|superband|tiraband|banda elástica|banda elastica/i.test(fullText);
+
+  if (isStrictlyBodyweightName && !hasLoadInName) return null;
+  if (isBodyweightEquip && !hasExternalLoad) return null;
+
+  const isBarbell = /\bbarra\b(?!\s*fija)|olímpica|olimpica|hexagonal|trap bar/i.test(fullText);
   const isLegPress = /prensa 45|prensa de piernas|leg press|prensa inclinada|prensa horizontal/i.test(fullText);
   const isHackOrPendulum = /hack|péndulo|pendulo|belt squat/i.test(fullText);
   const isSmith = /multipower|smith/i.test(fullText);
-  const isMachine = /máquina|maquina|machine|hammer|sillón|sillon|camilla/i.test(fullText);
+  const isMachine = /máquina|maquina|machine|hammer|sillón|sillon|camilla|pec deck|pecfly|pec fly|contractora/i.test(fullText);
   const isPulley = /polea|cable|dorsalera|jalón|jalon|face pull|pull-through|woodchop|lift & chop|pallof/i.test(fullText);
-  const isDumbbell = /mancuerna|dumbbell|manc\./i.test(fullText);
-  const isKettlebell = /kettlebell|\bkb\b|pesa rusa/i.test(fullText);
+  const isDumbbell = /mancuerna|macuerna|dumbbell|manc\.|\bdb\b/i.test(fullText);
+  const isKettlebell = /kettlebell|kettlebelt|\bkb\b|pesa rusa/i.test(fullText);
+  const isFreeHandWeight = (isDumbbell || isKettlebell) && !isBarbell;
   const isLandmine = /landmine|barra t|remo t/i.test(fullText);
-  const isSandbagOrClub = /sandbag|corebag|bolsa|clava|macebell|atlas|stone/i.test(fullText);
-  const isMedBall = /med ball|medicine ball|balón medicinal|balon medicinal|pelota/i.test(fullText);
-  const isUnilateral = /búlgara|bulgara|split squat|estocada|zancada|lunge|step-up|subida al caj|1 pierna|una pierna|una sola pierna|unipodal|1 brazo|un brazo|un solo brazo|1 mano|una mano|serrucho|medio arrodillado|half-kneeling|maleta|suitcase|waiter/i.test(fullText);
+  const isSandbagOrClub = /sandbag|corebag|bolsa|\b(clava|clavas)\b|macebell|atlas|stone/i.test(fullText);
+  const isMedBall = /med ball|medicine ball|balón medicinal|balon medicinal|pelota medicinal/i.test(fullText) && !/cable|polea/i.test(name);
 
-  if (isMedBall || pat === "PLIOMETRIA") return Math.max(3, rm.bench * 0.12);
+  const isOptionalBilateral = /bilateral o 1|2 piernas o 1/i.test(name);
+  const hasExplicitSingleLimb = !isOptionalBilateral && /1 pierna|una pierna|unipodal|1 brazo|un brazo|1 mano|una mano|búlgara|bulgara|estocada|zancada|lunge|split squat|step-up|subida al caj|serrucho|medio arrodillado|half-kneeling|maleta|suitcase|waiter/i.test(name);
+  const isBilateralExplicit = !hasExplicitSingleLimb && /\bbilateral\b|2 piernas|dos piernas|a 2 piernas/i.test(name);
+  const isUnilateral = hasExplicitSingleLimb || (!isBilateralExplicit && !isOptionalBilateral && /1 pierna|una pierna|unipodal|1 brazo|un brazo|1 mano|una mano/i.test(fullText));
+
+  if (isMedBall) return Math.max(3, rm.bench * 0.10);
+
+  if (pat === "PLIOMETRIA") {
+    if (/snatch|arrancada/i.test(fullText)) return (isDumbbell || isKettlebell || isUnilateral) ? rm.bench * 0.28 : rm.deadlift * 0.50;
+    if (/cargada|clean/i.test(fullText)) return (isDumbbell || isKettlebell || isUnilateral) ? rm.bench * 0.34 : rm.bench * 0.85;
+    return hasExternalLoad ? Math.max(4, rm.squat * 0.30) : null;
+  }
 
   if (pat === "RODILLA") {
     const base = rm.squat;
+    if (/gemelo|pantorrilla|sóleo|soleo|calf/i.test(fullText)) return isUnilateral ? base * 0.35 : base * 0.85;
     if (isLegPress) return base * 2.0;
     if (isHackOrPendulum) return base * 1.3;
-    if (/sillón|sillon|extensión de cuádriceps|leg extension/i.test(fullText)) return isUnilateral ? base * 0.24 : base * 0.48;
+    if (/sillón|sillon|extensión de cuádriceps|extension de cuadriceps|leg extension/i.test(fullText)) return isUnilateral ? base * 0.24 : base * 0.48;
     if (isSmith) return isUnilateral ? base * 0.7 : base * 1.08;
-    if (/frontal|front squat/i.test(fullText) && !isKettlebell && !isDumbbell) return base * 0.75;
+    if (/frontal|front squat/i.test(fullText) && !isFreeHandWeight) return base * 0.75;
     if (/zercher/i.test(fullText)) return base * 0.7;
-    if (/goblet|copa/i.test(fullText)) return base * 0.42;
-    if (isUnilateral) return (isDumbbell || isKettlebell) ? base * 0.32 : ((isSandbagOrClub || isLandmine) ? base * 0.5 : base * 0.65);
-    if (isDumbbell || isKettlebell) return base * 0.36;
+    if (/goblet|copa|sumo/i.test(fullText) && isFreeHandWeight) return base * 0.44;
+    if (isUnilateral) return isFreeHandWeight ? base * 0.32 : ((isSandbagOrClub || isLandmine) ? base * 0.5 : base * 0.65);
+    if (isFreeHandWeight) return base * 0.36;
     if (isSandbagOrClub) return base * 0.55;
     if (isLandmine) return base * 0.6;
     return base;
@@ -318,64 +344,73 @@ function estimateExercise1RM(row, customRM = null) {
 
   if (pat === "CADERA") {
     const base = rm.deadlift;
-    if (/hip thrust/i.test(fullText)) return (isDumbbell || isKettlebell) ? base * 0.45 : base * 1.15;
+    if (/abducci|aducci/i.test(fullText)) return base * 0.40;
+    if (/hip thrust/i.test(fullText)) {
+      if (isUnilateral) return isFreeHandWeight ? base * 0.25 : (isBarbell ? base * 0.45 : null);
+      return isFreeHandWeight ? base * 0.45 : base * 1.15;
+    }
     if (/hexagonal|trap bar|rack pull|bloques/i.test(fullText)) return base * 1.12;
-    if (/cargada|clean/i.test(fullText)) return (isDumbbell || isKettlebell) ? rm.bench * 0.38 : rm.bench;
-    if (/arrancada|snatch/i.test(fullText)) return (isDumbbell || isKettlebell) ? rm.bench * 0.3 : base * 0.55;
+    if (/snatch|arrancada/i.test(fullText)) return (isDumbbell || isKettlebell || isUnilateral) ? rm.bench * 0.28 : base * 0.55;
+    if (/cargada|clean/i.test(fullText)) return (isDumbbell || isKettlebell || isUnilateral) ? rm.bench * 0.34 : rm.bench;
     if (/swing/i.test(fullText)) return isUnilateral ? base * 0.34 : base * 0.42;
-    if (/camilla|sillón|leg curl|curl femoral/i.test(fullText)) return isUnilateral ? base * 0.17 : base * 0.34;
+    if (/camilla|sillón|sillon|leg curl|curl femoral/i.test(fullText)) return isUnilateral ? base * 0.17 : base * 0.34;
     if (isPulley || /pull-through/i.test(fullText)) return base * 0.45;
     if (/buenos días|buenos dias|good morning/i.test(fullText)) return base * 0.5;
     if (/rumano|rdl|piernas rígidas|piernas semirrígidas/i.test(fullText)) {
-      if (isUnilateral) return (isDumbbell || isKettlebell) ? base * 0.25 : base * 0.5;
-      return (isDumbbell || isKettlebell) ? base * 0.32 : base * 0.75;
+      if (isUnilateral) return isFreeHandWeight ? base * 0.25 : base * 0.5;
+      return isFreeHandWeight ? base * 0.32 : base * 0.75;
     }
-    if (isUnilateral) return (isDumbbell || isKettlebell) ? base * 0.25 : base * 0.5;
-    if (/puente de glúteos|floor bridge/i.test(fullText)) return base * 0.55;
-    if (isDumbbell || isKettlebell) return base * 0.35;
+    if (isUnilateral) return isFreeHandWeight ? base * 0.25 : base * 0.5;
+    if (/puente de glúteos|puente de gluteos|floor bridge/i.test(fullText)) return base * 0.55;
+    if (isFreeHandWeight) return base * 0.35;
     if (isSandbagOrClub) return base * 0.6;
     return base;
   }
 
   if (pat === "EMPUJE_H") {
     const base = rm.bench;
-    if (/apertura|fly|cruce en polea|cruces/i.test(fullText)) return base * 0.22;
+    if (/tríceps|triceps|rompecráneos|rompecraneos|francés|frances/i.test(fullText)) return (isFreeHandWeight || isUnilateral) ? base * 0.20 : base * 0.45;
+    if (/apertura|fly|pecfly|pec fly|cruce en polea|cruces|pec deck|contractora/i.test(fullText)) return base * 0.22;
     if (isMachine || isSmith) return base * 1.1;
-    if (/inclinad/i.test(fullText)) return (isDumbbell || isKettlebell) ? base * 0.36 : base * 0.82;
-    if (isPulley) return isUnilateral ? base * 0.32 : base * 0.6;
+    if (/inclinad/i.test(fullText)) return isFreeHandWeight ? base * 0.36 : base * 0.82;
+    if (isPulley) return isUnilateral ? base * 0.32 : base * 0.55;
     if (isLandmine) return base * 0.55;
-    if (isDumbbell || isKettlebell) return isUnilateral ? base * 0.4 : base * 0.42;
+    if (isFreeHandWeight) return isUnilateral ? base * 0.4 : base * 0.42;
     return base;
   }
 
   if (pat === "EMPUJE_V") {
     const base = rm.bench;
+    if (/tríceps|triceps/i.test(fullText)) return (isFreeHandWeight || isUnilateral) ? base * 0.20 : base * 0.45;
     if (/vuelo|elevación lateral|elevacion lateral|scaption|plano escapular|frontal/i.test(fullText)) return base * 0.14;
-    if (/push press|jerk|segundo tiempo/i.test(fullText)) return (isDumbbell || isKettlebell) ? base * 0.35 : base * 0.8;
-    if (/thruster|squat a press/i.test(fullText)) return (isDumbbell || isKettlebell) ? base * 0.3 : base * 0.6;
-    if (/bottom-up|sots|windmill|molino/i.test(fullText)) return base * 0.2;
+    if (/push press|jerk|segundo tiempo/i.test(fullText)) return isFreeHandWeight ? base * 0.35 : base * 0.8;
+    if (/thruster|squat a press/i.test(fullText)) return isFreeHandWeight ? base * 0.3 : base * 0.6;
+    if (/bottom-up|sots|windmill|molino|anyhow/i.test(fullText)) return base * 0.22;
     if (isMachine || isSmith) return base * 0.75;
     if (isLandmine) return isUnilateral ? base * 0.38 : base * 0.52;
-    if (isDumbbell || isKettlebell || isUnilateral) return base * 0.28;
+    if (isFreeHandWeight || isUnilateral) return base * 0.28;
     return base * 0.65;
   }
 
   if (pat === "TRACCION_V") {
     const base = rm.pulldown;
+    if (/bíceps|biceps|martillo|predicador|scott/i.test(fullText)) return (isFreeHandWeight || isUnilateral) ? base * 0.22 : base * 0.48;
     if (/pull-over|pullover|brazos rectos/i.test(fullText)) return base * 0.42;
     if (isMachine) return base * 1.08;
-    if (/dominada|chin-up|pull-up/i.test(fullText)) return /lastre|lastrad/i.test(fullText) ? base * 0.25 : null;
     if (isUnilateral && isPulley) return base * 0.48;
     return base;
   }
 
   if (pat === "TRACCION_H") {
     const base = rm.pulldown;
+    if (/bíceps|biceps|martillo|predicador|scott/i.test(fullText)) return (isFreeHandWeight || isUnilateral) ? base * 0.22 : base * 0.48;
+    if (/posición de plancha|posicion de plancha|renegade/i.test(fullText)) return base * 0.28;
+    if (/rotatorio|rotaci/i.test(fullText) && isUnilateral) return base * 0.34;
     if (/face pull|vuelo posterior|pájaro|pajaro|y-w|pull-apart|rotación externa/i.test(fullText)) return base * 0.24;
     if (isMachine) return base * 1.1;
     if (isPulley) return isUnilateral ? base * 0.46 : base * 0.95;
     if (isLandmine) return isUnilateral ? base * 0.48 : base * 0.85;
-    if (isDumbbell || isKettlebell || isUnilateral) return isUnilateral ? base * 0.45 : base * 0.38;
+    if (isFreeHandWeight || isUnilateral) return isUnilateral ? base * 0.45 : base * 0.38;
     return base * 0.95;
   }
 
@@ -387,9 +422,10 @@ function estimateExercise1RM(row, customRM = null) {
   }
 
   if (pat === "CORE") {
-    if (/turkish|levantada turca|levantamiento turco|tgu/i.test(fullText)) return rm.bench * 0.35;
+    if (/turkish|levantada turca|levantamiento turco|\btgu\b/i.test(fullText)) return rm.bench * 0.35;
     if (/windmill|molino/i.test(fullText)) return rm.bench * 0.25;
-    if (/leñador|lenador|woodchop|lift & chop|pallof|rotación en polea/i.test(fullText)) return rm.pulldown * 0.3;
+    if (/side bend|inclinación lateral|inclinacion lateral/i.test(fullText)) return rm.deadlift * 0.24;
+    if (/leñador|lenador|woodchop|lift & chop|alto-bajo|pallof|rotación en polea|crunch.*polea|crunch.*máquina|crunch.*maquina/i.test(fullText)) return rm.pulldown * 0.35;
     return null;
   }
 
@@ -401,21 +437,58 @@ function roundToGymStep(val, step) {
   return Number((Math.round(val / s) * s).toFixed(2));
 }
 
+function inferTargetPctFromRow(row, bKey, phaseKey) {
+  const phaseObj = NASM_PHASES[phaseKey] || NASM_PHASES["3"];
+  const fullName = String(row.name || "").toLowerCase();
+  const equip = findExerciseEquipmentText(row.name);
+
+  if (/med ball|medicine ball|balón medicinal|balon medicinal|pelota medicinal/i.test(`${fullName} ${equip}`) && !/cable|polea/i.test(fullName)) return 1.0;
+  if (phaseKey === "5" && /velocidad|speed|salto|jump|explosiv|balístic|vel\b/i.test(`${fullName} ${row.rpe || ""}`)) return 0.40;
+  if (bKey === "core") return /turkish|levantada turca|\btgu\b/i.test(fullName) ? 0.72 : 0.65;
+  if (row.pattern === "TRANSPORTE") return 0.75;
+
+  const rangePct = String(row.rpe || "").match(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*%/);
+  if (rangePct) {
+    const avg = (parseFloat(rangePct[1]) + parseFloat(rangePct[2])) / 2;
+    if (avg >= 30 && avg <= 100) return avg / 100;
+  }
+
+  const pctMatches = String(row.rpe || "").match(/(\d+(?:\.\d+)?)\s*%/g);
+  if (pctMatches && pctMatches.length > 0) {
+    const nums = pctMatches.map(s => parseFloat(s));
+    const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+    if (avg >= 30 && avg <= 100) return avg / 100;
+  }
+
+  const repNums = String(row.reps || "").match(/\d+/g);
+  if (repNums && repNums.length > 0 && !/\d\s*(s|seg|min|m)\b/i.test(row.reps || "")) {
+    const avgReps = repNums.slice(0, 2).reduce((a, b) => a + parseFloat(b), 0) / Math.min(2, repNums.length);
+    if (avgReps <= 3) return 0.88;
+    if (avgReps <= 5) return 0.84;
+    if (avgReps <= 7) return 0.78;
+    if (avgReps <= 10) return 0.73;
+    if (avgReps <= 12) return 0.68;
+    if (avgReps <= 15) return 0.62;
+    return 0.55;
+  }
+
+  return phaseObj.pct;
+}
+
 function applyBaseStrengthToRoutine(includeProgression = true, customRM = null) {
   if (!customRM) saveStrengthFieldsToMeta();
   const phaseKey = appState.meta.nasmPhase || "3";
-  const phaseObj = NASM_PHASES[phaseKey] || NASM_PHASES["3"];
   const step = parseFloat(document.getElementById("rounding-select")?.value) || 1;
 
   appState.days.forEach(d => {
     ["str", "core"].forEach(bKey => {
       (d.blocks[bKey] || []).forEach(r => {
         const est1RM = estimateExercise1RM(r, customRM);
-        if (!est1RM || est1RM <= 0) return;
-
-        let targetIntensity = bKey === "core" ? 0.65 : phaseObj.pct;
-        if (phaseKey === "5" && /velocidad|speed|salto|jump|explosiv|balístic/i.test(r.name)) targetIntensity = 0.40;
-
+        if (!est1RM || est1RM <= 0) {
+          r.w1 = r.w2 = r.w3 = r.w4 = "";
+          return;
+        }
+        const targetIntensity = inferTargetPctFromRow(r, bKey, phaseKey);
         const w1Val = Math.max(step, roundToGymStep(est1RM * targetIntensity, step));
         r.w1 = String(w1Val);
         if (includeProgression) {
@@ -430,47 +503,43 @@ function applyBaseStrengthToRoutine(includeProgression = true, customRM = null) 
   renderAll();
 }
 
-function onPhaseSelectChange() {
-  const prevPhaseKey = String(appState.meta.nasmPhase || "3");
-  const newPhaseKey = document.getElementById("nasm-phase-select").value;
-  const prevPhase = NASM_PHASES[prevPhaseKey] || NASM_PHASES["3"];
-  const newPhase = NASM_PHASES[newPhaseKey] || NASM_PHASES["3"];
 
+function onPhaseSelectChange() {
+  const newPhaseKey = document.getElementById("nasm-phase-select").value;
   appState.meta.nasmPhase = newPhaseKey;
+  if (typeof genConfig !== "undefined") {
+    genConfig.phase = newPhaseKey;
+    if (typeof syncGenPrescriptionFromPhaseAndMethod === "function") syncGenPrescriptionFromPhaseAndMethod();
+  }
   updateNASMAssistant();
 
-  const step = parseFloat(document.getElementById("rounding-select")?.value) || 1;
-  const ratio = prevPhase.pct > 0 ? newPhase.pct / prevPhase.pct : 1;
-
-  appState.days.forEach(d => {
-    (d.blocks.str || []).forEach(r => {
-      if (r.pattern !== "TRANSPORTE") {
+  const newPhase = NASM_PHASES[newPhaseKey] || NASM_PHASES["3"];
+  appState.days.forEach((d, dIdx) => {
+    (d.blocks.str || []).forEach((r, rIdx) => {
+      if (r.pattern === "TRANSPORTE") return;
+      if (typeof prescribeRowForExercise === "function") {
+        const foundEx = (appState.exercises || []).find(
+          e => String(e.name || "").trim().toLowerCase() === String(r.name || "").trim().toLowerCase()
+        );
+        const exObj = foundEx || { name: r.name, pattern: r.pattern, equip: "" };
+        const slotRole = typeof getSlotRoleForPhase === "function"
+          ? getSlotRoleForPhase(newPhaseKey, rIdx, appState.days.length, dIdx)
+          : (rIdx < 2 ? "primary" : "secondary");
+        const methodKey = (typeof genConfig !== "undefined" && genConfig.method) ? genConfig.method : "nucleo";
+        const rx = prescribeRowForExercise(exObj, "str", rIdx, r.sets || newPhase.def.sets, newPhaseKey, methodKey, slotRole);
+        r.reps = rx.reps;
+        r.rpe = rx.rpe;
+        r.rest = rx.rest;
+      } else {
         r.sets = newPhase.def.sets;
         r.reps = newPhase.def.reps;
         r.rpe  = newPhase.def.rpe;
         r.rest = newPhase.def.rest;
       }
-
-      const w1Num = parseFloat(String(r.w1 || "").replace(",", "."));
-      if (!isNaN(w1Num) && w1Num > 0) {
-        ["w1", "w2", "w3", "w4"].forEach(wk => {
-          const val = parseFloat(String(r[wk] || "").replace(",", "."));
-          if (!isNaN(val) && val > 0) r[wk] = String(Math.max(step, roundToGymStep(val * ratio, step)));
-        });
-      } else {
-        const est1RM = estimateExercise1RM(r);
-        if (est1RM && est1RM > 0) {
-          const w1Calc = Math.max(step, roundToGymStep(est1RM * newPhase.pct, step));
-          r.w1 = String(w1Calc);
-          r.w2 = String(roundToGymStep(w1Calc * 1.025, step));
-          r.w3 = String(roundToGymStep(w1Calc * 1.05, step));
-          r.w4 = String(roundToGymStep(w1Calc * 1.075, step));
-        }
-      }
     });
   });
 
-  renderAll();
+  applyBaseStrengthToRoutine(true);
 }
 
 function buildMomentOptions(sel) {
